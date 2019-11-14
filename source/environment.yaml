@@ -46,5 +46,4 @@ dependencies:
   - pip:
     - colorama==0.4.1
     - sphinx-rtd-theme==0.4.3
-prefix: C:\Users\mmitchell.DUCKS\AppData\Local\Continuum\anaconda3\envs\abdudst
 
