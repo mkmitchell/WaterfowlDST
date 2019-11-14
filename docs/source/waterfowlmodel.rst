@@ -1,0 +1,2 @@
+.. automodule:: source.waterfowlmodel
+    :members:
