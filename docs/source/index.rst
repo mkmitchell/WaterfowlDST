@@ -10,7 +10,7 @@ Welcome to ABDU DST's documentation!
    :maxdepth: 2
    :caption: Contents:
 
-   waterfowlmodel
+   base
 
 Indices and tables
 ==================

@@ -32,7 +32,8 @@ release = '1.0'
 # extensions coming with Sphinx (named 'sphinx.ext.*') or your custom
 # ones.
 extensions = [
-    "sphinx_rtd_theme",
+    'sphinx_rtd_theme',
+    'nbsphinx',
     'sphinx.ext.autodoc'
 ]
 
@@ -42,7 +43,7 @@ templates_path = ['_templates']
 # List of patterns, relative to source directory, that match files and
 # directories to ignore when looking for source files.
 # This pattern also affects html_static_path and html_extra_path.
-exclude_patterns = []
+exclude_patterns = [ '**.ipynb_checkpoints']
 
 
 # -- Options for HTML output -------------------------------------------------
@@ -57,5 +58,5 @@ html_theme = 'sphinx_rtd_theme'
 # so a file named "default.css" will overwrite the builtin "default.css".
 html_static_path = ['_static']
 
-
+autoclass_content = 'both'
 # -- Extension configuration -------------------------------------------------
