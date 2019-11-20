@@ -11,6 +11,7 @@ Welcome to ABDU DST's documentation!
    :caption: Contents:
 
    base
+   runModel
 
 Indices and tables
 ==================

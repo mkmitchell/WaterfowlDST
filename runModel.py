@@ -1,4 +1,6 @@
 """
+runModel
+========
 runModel is an example of how to utilize the waterfowlmodel module.
 """
 
