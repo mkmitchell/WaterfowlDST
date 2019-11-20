@@ -5,21 +5,21 @@ Defines Waterfowlmodel class which is initialized by supplying an area of intere
 """
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
-  def __init__(self, aoi, nwi, kcalTable, crosswalk):
+  def __init__(self, aoi, wetland, kcalTable, crosswalk):
     """
     Creates a waterfowl model object.
     
     :param aoi: Area of interest shapefile
     :type aoi: str
-    :param nwi: National Wetlands Inventory shapefile
-    :type nwi: str
+    :param wetland: National Wetlands Inventory shapefile
+    :type wetland: str
     :param kcalTable: CSV file containing two columns [habitat type, kilocalorie value by acre]
     :type kcalTable: str
     :param crosswalk: CSV file relating wetland habitat types to kcal csv table
     :type crosswalk: str
     """
     self.aoi = aoi
-    self.nwi = nwi
+    self.wetland = wetland
     self.kcalTbl = kcalTable
     self.crossTbl = crosswalk
 
