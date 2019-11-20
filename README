@@ -1,6 +1,0 @@
-Starting point for Waterfowl Decision Support Tool for the East coast Joint Ventures.
-
-To use this repo 
-    clone it
-    create the environment from ./source/environment.yaml
-    browse to ./docs and run 'make html'
