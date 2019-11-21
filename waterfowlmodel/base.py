@@ -3,9 +3,11 @@ Module Waterfowl
 ================
 Defines Waterfowlmodel class which is initialized by supplying an area of interest shapfile, wetland shapefile, kilocalorie by habitat type table, and the table linking the wetland shapefile to the kcal table.
 """
+import os, sys, getopt, datetime, logging
+
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
-  def __init__(self, aoi, wetland, kcalTable, crosswalk):
+  def __init__(self, aoi, wetland, kcalTable, crosswalk, demand):
     """
     Creates a waterfowl model object.
     
@@ -17,11 +19,14 @@ class Waterfowlmodel:
     :type kcalTable: str
     :param crosswalk: CSV file relating wetland habitat types to kcal csv table
     :type crosswalk: str
+    :param demand: NAWCA stepdown DUD objectives
+    :type demand: str
     """
     self.aoi = aoi
     self.wetland = wetland
     self.kcalTbl = kcalTable
     self.crossTbl = crosswalk
+    self.demand = demand
 
   def getAOI(self):
     """
