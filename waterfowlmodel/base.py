@@ -3,11 +3,11 @@ Module Waterfowl
 ================
 Defines Waterfowlmodel class which is initialized by supplying an area of interest shapfile, wetland shapefile, kilocalorie by habitat type table, and the table linking the wetland shapefile to the kcal table.
 """
-import os, sys, getopt, datetime, logging
+import os, sys, getopt, datetime, logging, arcpy
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
-  def __init__(self, aoi, wetland, kcalTable, crosswalk, demand):
+  def __init__(self, aoi, wetland, kcalTable, crosswalk, demand, scratch):
     """
     Creates a waterfowl model object.
     
@@ -21,12 +21,15 @@ class Waterfowlmodel:
     :type crosswalk: str
     :param demand: NAWCA stepdown DUD objectives
     :type demand: str
+    :param scratch: Scratch geodatabase location
+    :type scratch: str
     """
     self.aoi = aoi
     self.wetland = wetland
     self.kcalTbl = kcalTable
     self.crossTbl = crosswalk
     self.demand = demand
+    self.scratch = scratch
 
   def getAOI(self):
     """
@@ -36,6 +39,19 @@ class Waterfowlmodel:
     :rtype: str
     """
     return self.aoi
+
+  def clipStuff(self):
+    logging.info("Clipping features")
+    arcpy.Clip_analysis(self.wetland, self.aoi,self.scratch + "aoiWetland")
+
+  def prepEnergy(self):
+    """
+    Returns habitat energy availability feature.
+
+    :return: Available habitat feature
+    :rtype: str
+    """
+    return "energy ready!"
 
   def dstOutout(self):
     """
