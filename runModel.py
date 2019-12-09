@@ -135,10 +135,10 @@ def main(argv):
    logging.info('Energy demand: ' + demand)
 
    dst = waterfowl.Waterfowlmodel(aoi, wetland, kcalTable, crosswalk, demand, scratchgdb)
-   print(dst.prepEnergy())
-   print(dst.dstOutout())
    print('Test clip')
    dst.clipStuff()
+   print('Prep Energy')
+   dst.prepEnergy()
    print('\n Complete')
    print('#####################################\n')
 

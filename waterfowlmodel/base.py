@@ -33,27 +33,33 @@ class Waterfowlmodel:
     self.scratch = scratch
     env.workspace = scratch
 
-  def getAOI(self):
-    """
-    Returns the area of interest.  For testing purposes
-
-    :return: The model area of interest
-    :rtype: str
-    """
-    return self.aoi
-
   def clipStuff(self):
-    logging.info("Clipping features")
-    print(os.path.dirname(self.scratch))
-    arcpy.Clip_analysis(self.wetland, self.aoi, os.path.join(os.path.dirname(self.scratch),"aoiWetland.shp"))
+    if arcpy.Exists(os.path.join(os.path.dirname(self.scratch),"aoiWetland.shp")):
+      print('Already have nwi clipped with aoi')
+      logging.info('Already have nwi clipped with aoi')
+    else:
+      arcpy.Clip_analysis(self.wetland, self.aoi, os.path.join(os.path.dirname(self.scratch),"aoiWetland.shp"))
+      logging.info("Clipping features")
+    self.wetland = os.path.join(os.path.dirname(self.scratch),"aoiWetland.shp")
 
-  def prepEnergy(self):
+  def prepEnergy(self, habtype = 'ATTRIBUTE'):
     """
-    Returns habitat energy availability feature.
+    Returns habitat energy availability feature with a new field [avalNrgy] calculated from joining crosswalk table to habitat value and assigning energy.
 
+    :param habtype: Habitat type field
+    :type habtype: str
     :return: Available habitat feature
     :rtype: str
     """
+    print(self.wetland)
+    if len(arcpy.ListFields(self.wetland,'avalNrgy'))>0:
+      print("Energy field exists")
+    else:
+      print("Adding energy field")
+      arcpy.AddField_management(self.wetland, 'avalNrgy', "DOUBLE", 9, "", "", "AvailableEnergy")
+    
+    arcpy.JoinField_management(self.wetland, habtype, self.crossTbl, 'fromHabitat', ['fromHabitat', 'toHabitat'])
+    arcpy.CalculateField_management(self.wetland, 'avalNrgy', "!toHabitat!", "PYTHON3")
     return "energy ready!"
 
   def dstOutout(self):
