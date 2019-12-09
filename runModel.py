@@ -97,14 +97,15 @@ def main(argv):
          if not (os.path.exists(os.path.join(workspace, arg))):
             print('Creating project folder: ', os.path.join(os.path.join(workspace, arg)))
             os.mkdir(os.path.join(workspace, arg))
-            arcpy.CreateFileGDB_management(os.path.join(workspace, arg), arg + "_scratch.gdb")
             scratchgdb = os.path.join(workspace, arg, arg + "_scratch.gdb")
+            arcpy.CreateFileGDB_management(scratchgdb)
+            
          else:
             print("Project folder already exists.  Using it")
             scratchgdb = os.path.join(workspace, arg, arg + "_scratch.gdb")
             if not (os.path.exists(scratchgdb)):
                print('Creating scratch geodatabase: ', scratchgdb)
-               arcpy.CreateFileGDB_management(os.path.join(workspace, arg), arg + "_scratch.gdb")
+               arcpy.CreateFileGDB_management(scratchgdb)
             else:
                print("Scratch GDB already exists.  Using it")            
          if not (arcpy.Exists(aoi)):
@@ -119,6 +120,7 @@ def main(argv):
    print('Crosswalk table: ', crosswalk)
    print('Energy demand layer: ', demand)
    print('Region of interest: ', aoi)
+   print('Scratch gdb: ', scratchgdb)
    print('#####################################\n')
 
    logging.info("Waterfowl DST run")

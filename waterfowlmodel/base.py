@@ -4,6 +4,7 @@ Module Waterfowl
 Defines Waterfowlmodel class which is initialized by supplying an area of interest shapfile, wetland shapefile, kilocalorie by habitat type table, and the table linking the wetland shapefile to the kcal table.
 """
 import os, sys, getopt, datetime, logging, arcpy
+from arcpy import env
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
@@ -30,6 +31,7 @@ class Waterfowlmodel:
     self.crossTbl = crosswalk
     self.demand = demand
     self.scratch = scratch
+    env.workspace = scratch
 
   def getAOI(self):
     """
@@ -42,7 +44,8 @@ class Waterfowlmodel:
 
   def clipStuff(self):
     logging.info("Clipping features")
-    arcpy.Clip_analysis(self.wetland, self.aoi,self.scratch + "aoiWetland")
+    print(os.path.dirname(self.scratch))
+    arcpy.Clip_analysis(self.wetland, self.aoi, os.path.join(os.path.dirname(self.scratch),"aoiWetland.shp"))
 
   def prepEnergy(self):
     """
