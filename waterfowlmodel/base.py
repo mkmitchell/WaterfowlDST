@@ -3,11 +3,12 @@ Module Waterfowl
 ================
 Defines Waterfowlmodel class which is initialized by supplying an area of interest shapfile, wetland shapefile, kilocalorie by habitat type table, and the table linking the wetland shapefile to the kcal table.
 """
-import os, sys, getopt, datetime, logging
+import os, sys, getopt, datetime, logging, arcpy
+from arcpy import env
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
-  def __init__(self, aoi, wetland, kcalTable, crosswalk, demand):
+  def __init__(self, aoi, wetland, kcalTable, crosswalk, demand, scratch):
     """
     Creates a waterfowl model object.
     
@@ -21,21 +22,62 @@ class Waterfowlmodel:
     :type crosswalk: str
     :param demand: NAWCA stepdown DUD objectives
     :type demand: str
+    :param scratch: Scratch geodatabase location
+    :type scratch: str
     """
     self.aoi = aoi
     self.wetland = wetland
     self.kcalTbl = kcalTable
     self.crossTbl = crosswalk
     self.demand = demand
+    self.scratch = scratch
+    env.workspace = scratch
 
-  def getAOI(self):
+  def clipStuff(self):
+    if arcpy.Exists(os.path.join(os.path.dirname(self.scratch),"aoiWetland.shp")):
+      print('Already have nwi clipped with aoi')
+      logging.info('Already have nwi clipped with aoi')
+    else:
+      arcpy.Clip_analysis(self.wetland, self.aoi, os.path.join(os.path.dirname(self.scratch),"aoiWetland.shp"))
+      logging.info("Clipping features")
+    self.wetland = os.path.join(os.path.dirname(self.scratch),"aoiWetland.shp")
+
+  def prepEnergy(self, habtype = 'ATTRIBUTE'):
     """
-    Returns the area of interest.  For testing purposes
+    Returns habitat energy availability feature with a new field [avalNrgy] calculated from joining crosswalk table to habitat value and assigning energy.
 
-    :return: The model area of interest
+    :param habtype: Habitat type field
+    :type habtype: str
+    :return: Available habitat feature
     :rtype: str
     """
-    return self.aoi
+    print(self.wetland)
+    if len(arcpy.ListFields(self.wetland,'avalNrgy'))>0:
+      print("Energy field exists")
+    else:
+      print("Adding energy field")
+      arcpy.AddField_management(self.wetland, 'avalNrgy', "DOUBLE", 9, "", "", "AvailableEnergy")
+    logging.info("Joining habitat")
+    if len(arcpy.ListFields(self.wetland,'toHabitat'))>0:
+      print('Already have toHabitat field')
+    else:
+      print('Join habitat')
+      arcpy.JoinField_management(self.wetland, habtype, self.crossTbl, 'fromHabitat', ['toHabitat'])
+    logging.info('Join kcal')
+    if len(arcpy.ListFields(self.wetland,'kcal'))>0:
+      print('Already have kcal field')
+    else:
+      print('Join kcal')
+      arcpy.JoinField_management(self.wetland, 'toHabitat', self.kcalTbl, 'habitatType', ['kcal'])
+    print('Calculate energy')
+    logging.info("Calculate energy")
+    if not len(arcpy.ListFields(self.wetland,'CalcAcre'))>0:
+      arcpy.AddField_management(self.wetland, 'CalcAcre', "DOUBLE", 9, "", "", "Acreage")
+    arcpy.CalculateGeometryAttributes_management(self.wetland, "CalcAcre AREA", area_unit="ACRES")
+    #arcpy.management.CalculateGeometryAttributes("aoiWetland", "CalcAcre AREA", '', "ACRES", None)
+    arcpy.CalculateField_management(self.wetland, 'avalNrgy', "!CalcAcre! * !kcal!", "PYTHON3")
+    #arcpy.management.CalculateField("aoiWetland", "avalNrgy", "!kcal! * !CalcAcre!", "PYTHON3", '')
+    return "energy ready!"
 
   def dstOutout(self):
     """
