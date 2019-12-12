@@ -57,9 +57,26 @@ class Waterfowlmodel:
     else:
       print("Adding energy field")
       arcpy.AddField_management(self.wetland, 'avalNrgy', "DOUBLE", 9, "", "", "AvailableEnergy")
-    
-    arcpy.JoinField_management(self.wetland, habtype, self.crossTbl, 'fromHabitat', ['fromHabitat', 'toHabitat'])
-    arcpy.CalculateField_management(self.wetland, 'avalNrgy', "!toHabitat!", "PYTHON3")
+    logging.info("Joining habitat")
+    if len(arcpy.ListFields(self.wetland,'toHabitat'))>0:
+      print('Already have toHabitat field')
+    else:
+      print('Join habitat')
+      arcpy.JoinField_management(self.wetland, habtype, self.crossTbl, 'fromHabitat', ['toHabitat'])
+    logging.info('Join kcal')
+    if len(arcpy.ListFields(self.wetland,'kcal'))>0:
+      print('Already have kcal field')
+    else:
+      print('Join kcal')
+      arcpy.JoinField_management(self.wetland, 'toHabitat', self.kcalTbl, 'habitatType', ['kcal'])
+    print('Calculate energy')
+    logging.info("Calculate energy")
+    if not len(arcpy.ListFields(self.wetland,'CalcAcre'))>0:
+      arcpy.AddField_management(self.wetland, 'CalcAcre', "DOUBLE", 9, "", "", "Acreage")
+    arcpy.CalculateGeometryAttributes_management(self.wetland, "CalcAcre AREA", area_unit="ACRES")
+    #arcpy.management.CalculateGeometryAttributes("aoiWetland", "CalcAcre AREA", '', "ACRES", None)
+    arcpy.CalculateField_management(self.wetland, 'avalNrgy', "!CalcAcre! * !kcal!", "PYTHON3")
+    #arcpy.management.CalculateField("aoiWetland", "avalNrgy", "!kcal! * !CalcAcre!", "PYTHON3", '')
     return "energy ready!"
 
   def dstOutout(self):
