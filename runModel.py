@@ -98,14 +98,14 @@ def main(argv):
             print('Creating project folder: ', os.path.join(os.path.join(workspace, arg)))
             os.mkdir(os.path.join(workspace, arg))
             scratchgdb = os.path.join(workspace, arg, arg + "_scratch.gdb")
-            arcpy.CreateFileGDB_management(scratchgdb)
+            arcpy.CreateFileGDB_management(os.path.join(workspace,arg), arg+'_scratch.gdb')
             
          else:
             print("Project folder already exists.  Using it")
             scratchgdb = os.path.join(workspace, arg, arg + "_scratch.gdb")
             if not (os.path.exists(scratchgdb)):
                print('Creating scratch geodatabase: ', scratchgdb)
-               arcpy.CreateFileGDB_management(scratchgdb)
+               arcpy.CreateFileGDB_management(os.path.join(workspace,arg), arg+'_scratch.gdb')
             else:
                print("Scratch GDB already exists.  Using it")            
          if not (arcpy.Exists(aoi)):

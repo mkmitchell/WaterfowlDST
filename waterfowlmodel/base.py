@@ -34,6 +34,9 @@ class Waterfowlmodel:
     env.workspace = scratch
 
   def clipStuff(self):
+    """
+    Clips wetland to the area of interest.
+    """
     if arcpy.Exists(os.path.join(os.path.dirname(self.scratch),"aoiWetland.shp")):
       print('Already have nwi clipped with aoi')
       logging.info('Already have nwi clipped with aoi')
