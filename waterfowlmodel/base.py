@@ -53,7 +53,7 @@ class Waterfowlmodel:
     """
     Clips wetland to the area of interest.
     """
-    outfc = inFeature
+    outfc = os.path.join(self.scratch, cat + 'clip')
     if arcpy.Exists(outfc):
       print('Already have {} clipped with aoi'.format(cat))
       logging.info('Already have {} clipped with aoi'.format(cat))
@@ -78,7 +78,7 @@ class Waterfowlmodel:
     # Read data from file:
     dataDict = json.load(open(self.crossTbl))
     print(dataDict.keys())
-    rows = arcpy.UpdateCursor(self.wetland, where_clause="CLASS='' OR CLASS=' '")
+    rows = arcpy.UpdateCursor(self.wetland, where_clause="CLASS='' OR CLASS=' ' OR CLASS is NULL")
     for row in rows:
       for key,value in dataDict.items():
         if row.getValue('ATTRIBUTE') in value:
