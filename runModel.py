@@ -4,9 +4,9 @@ runModel
 runModel is an example of how to utilize the waterfowlmodel module.
 """
 
-import os, sys, getopt, datetime, logging, arcpy
+import os, sys, getopt, datetime, logging, arcpy, argparse, time
 import waterfowlmodel.base as waterfowl
-import waterfowlmodel.SpatialJoinLargestOverlap as overlap
+import waterfowlmodel.dataset
 
 def printHelp():
          """
@@ -60,84 +60,88 @@ def main(argv):
    geodatabase = ''
    scratchgdb = ''
    aoifolder = ''
+   extra = {}
 
-   try:
-      opts, args = getopt.getopt(argv,"hw:g:l:k:c:d:a:b:",["workspace=","geodatabase", "wetland=", "kcalTable=", "crosswalk=", "demand=",  "aoi=", "bin="])
-      if '-f' in opts:
-         print('Reading in config file')
-         # make opts and args = what's in the config file.
-      if len(opts) < 7:
-         printHelp()
-   except getopt.GetoptError:
+   parser=argparse.ArgumentParser(prog=argv)
+   parser.add_argument('--workspace', '-w', nargs=1, type=str, default='', help="Workspace where geodatabase and csvs are stored")
+   parser.add_argument('--geodatabase', '-g', nargs=1, type=str, default='', help="Geodatabase that stores features")
+   parser.add_argument('--wetland', '-l', nargs=2, type=str, default=[], help="Specify the name of the wetland layer and csv file separated by a comma")
+   parser.add_argument('--kcalTable', '-k', nargs=1, type=str, default=[], help="Specify the name of the kcal energy table")
+   parser.add_argument('--demand', '-d', nargs=1, type=str, default=[], help="Specify name of NAWCA stepdown layer")
+   parser.add_argument('--extra', '-e', nargs="*", type=str, default=[], help="Extra habitat datasets in format: full path to dataset 1, full path to crosswalk 1, full path to dataset 2, full path to crosswalk")
+   parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
+   parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
+   
+   # parse the command line
+   args = parser.parse_args()
+   if len(argv) < 8:
       printHelp()
-   for opt, arg in opts:
-      if opt in ('-h', '--help'):
-         printHelp()
-      elif opt in ("-w", "--workspace"):
-         workspace = arg
-         if not (os.path.exists(workspace)):
-                 print("Workspace folder doesn't exist.")
-                 sys.exit(2)
-      elif opt in ("-g", "--geodatabase"):
-         geodatabase = os.path.join(workspace,arg)
-         if not (os.path.exists(geodatabase)):
-                 print("Geodatabase doesn't exist.")
-                 sys.exit(2)                 
-      elif opt in ("-l", "--wetland"):
-         wetland = os.path.join(geodatabase,arg)
-         if not arcpy.Exists(wetland):
-                 print("Wetland layer doesn't exist.")
-                 sys.exit(2)
-      elif opt in ("-k", "--kcalTable"):
-         kcalTable = os.path.join(workspace, arg)
-         if not (os.path.exists(kcalTable)):
-                 print("kcal table doesn't exist.")
-                 sys.exit(2)
-      elif opt in ("-c", "--crosswalk"):
-         crosswalk = os.path.join(workspace,arg)
-         if not (os.path.exists(crosswalk)):
-                 print("crosswalk table doesn't exist.")
-                 sys.exit(2)
-      elif opt in ("-d", "--demand"):
-         demand = os.path.join(geodatabase,arg)
-         if not (arcpy.Exists(demand)):
-                 print("energy demand layer doesn't exist.")
-                 sys.exit(2)                
-      elif opt in ("-a", "--aoi"):
-         aoi = os.path.join(geodatabase,arg)
-         if not (os.path.exists(os.path.join(workspace, arg))):
-            print('Creating project folder: ', os.path.join(os.path.join(workspace, arg)))
-            os.mkdir(os.path.join(workspace, arg))
-            scratchgdb = os.path.join(workspace, arg, arg + "_scratch.gdb")
-            arcpy.CreateFileGDB_management(os.path.join(workspace,arg), arg+'_scratch.gdb')
-            
-         else:
-            print("Project folder already exists.  Using it")
-            scratchgdb = os.path.join(workspace, arg, arg + "_scratch.gdb")
-            if not (os.path.exists(scratchgdb)):
-               print('Creating scratch geodatabase: ', scratchgdb)
-               arcpy.CreateFileGDB_management(os.path.join(workspace,arg), arg+'_scratch.gdb')
-            else:
-               print("Scratch GDB already exists.  Using it")            
-         if not (arcpy.Exists(aoi)):
-                 print("aoi layer doesn't exist.")
-                 sys.exit(2)
-      elif opt in ("-b", "--bin"):
-         binIt = os.path.join(geodatabase,arg)
-         if not (arcpy.Exists(binIt)):
-                 print("bin layer doesn't exist.")
-                 sys.exit(2)                 
-         logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + arg + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
+      sys.exit(2)    
+   workspace = args.workspace[0]
+   if not (os.path.exists(workspace)):
+      print("Workspace folder doesn't exist:", workspace)
+      sys.exit(2)
+   geodatabase = os.path.join(workspace,args.geodatabase[0])
+   if not (os.path.exists(geodatabase)):
+      print("Geodatabase doesn't exist: ", geodatabase)
+      sys.exit(2)             
+   wetland = os.path.join(geodatabase,args.wetland[0])
+   wetlandX = os.path.join(workspace,args.wetland[1])
+   if not arcpy.Exists(wetland):
+      print("Wetland layer doesn't exist.", wetland)
+      sys.exit(2)
+   if not arcpy.Exists(wetlandX):
+      print("Wetland crosswalk doesn't exist.")
+      sys.exit(2)
+   kcalTable = os.path.join(workspace,args.kcalTable[0])
+   if not arcpy.Exists(kcalTable):
+      print("kcalTable layer doesn't exist.")
+      sys.exit(2)
+   demand = os.path.join(geodatabase,args.demand[0])
+   if not arcpy.Exists(demand):
+      print("Demand layer doesn't exist.")
+      sys.exit(2)
+   if len(args.extra) > 0:
+      if len(args.extra)%2 != 0:
+         print("Number of extra habitat datasets does not equal crossover tables")
+      else:
+         extra = {os.path.join(geodatabase,args.extra[i]): os.path.join(workspace,args.extra[i + 1]) for i in range(0, len(args.extra), 2)}
+   binIt = os.path.join(geodatabase,args.binIt[0])
+   if not arcpy.Exists(binIt):
+      print("Aggregation layer doesn't exist.")
+      sys.exit(2)
+   aoi = os.path.join(geodatabase,args.aoi[0])
+   if not (os.path.exists(os.path.join(workspace, args.aoi[0]))):
+      print('Creating project folder: ', os.path.join(os.path.join(workspace, args.aoi[0])))
+      os.mkdir(os.path.join(workspace, args.aoi[0]))
+      scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
+      arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
+   else:
+      print("Project folder already exists.  Using it")
+      scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
+      if not (os.path.exists(scratchgdb)):
+         print('Creating scratch geodatabase: ', scratchgdb)
+         arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
+      else:
+         print("Scratch GDB already exists.  Using it")            
+   if not (arcpy.Exists(aoi)):
+            print("aoi layer doesn't exist.")
+            sys.exit(2)
+       
+   logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + args.aoi[0] + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
+   wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
+   demand = waterfowlmodel.dataset.Dataset(demand, scratchgdb)
    
    print('\nINPUT')
    print('#####################################')
    print('Workspace: ', workspace)
-   print('Wetland layer: ', wetland)
+   print('Wetland layer: ', wetland.inData)
+   print('Wetland crosswalk: ', wetland.crosswalk)
    print('Geodatabase: ', geodatabase)
    print('Kcal Table: ', kcalTable)
-   print('Crosswalk table: ', crosswalk)
-   print('Energy demand layer: ', demand)
+   print('Energy demand layer: ', demand.inData)
    print('Bin layer: ', binIt)
+   print('Extra datasets: ', extra)   
    print('Region of interest: ', aoi)
    print('Scratch gdb: ', scratchgdb)
    print('#####################################\n')
@@ -148,13 +152,15 @@ def main(argv):
    logging.info('Geodatabase: ' + geodatabase)
    logging.info('Scratch: ' + scratchgdb)
    logging.info('Region of interest: ' + aoi)
-   logging.info('Wetland dataset: ' + wetland)
+   logging.info('Wetland dataset: ' + wetland.inData)
+   logging.info('Wetland crosswalk: ' + wetland.crosswalk)
    logging.info('Kcal table: ' + kcalTable)
-   logging.info('Crosswalk table: ' + crosswalk)
-   logging.info('Energy demand: ' + demand)
+   logging.info('Energy demand: ' + demand.inData)
    logging.info('Bin layer: ' + binIt)
 
-   dst = waterfowl.Waterfowlmodel(aoi, wetland, kcalTable, crosswalk, demand, binIt, scratchgdb)
+   startT = time.clock()
+   dst = waterfowl.Waterfowlmodel(aoi, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, scratchgdb)
+   print(time.clock() - startT)
    print('\nAfter dst')
    print('#####################################')
    print('Wetland layer: ', dst.wetland)
@@ -163,11 +169,21 @@ def main(argv):
    print('Region of interest: ', dst.aoi)
    print('Scratch gdb: ', dst.scratch)
    print('#####################################\n')
+   startT = time.clock()
    dst.crossClass()
+   print(time.clock() - startT)
    print('Prep Energy')
+   startT = time.clock()
    dst.prepEnergy()
-   print('Bin It')
-   overlap.SpatialJoinLargestOverlap(dst.binIt,dst.wetland,os.path.join(scratchgdb,'testbin'),True, 'largest_overlap')
+   print(time.clock() - startT)
+   print('Bin Wetland')
+   startT = time.clock()
+   wetbin = dst.bin(dst.wetland, dst.binIt, 'wetland')
+   print(time.clock() - startT)
+   print('Bin Demand')
+   startT = time.clock()
+   demandbin = dst.bin(dst.demand, dst.binIt, 'demand')
+   print(time.clock() - startT)
    print('\n Complete')
    print('#####################################\n')
 
