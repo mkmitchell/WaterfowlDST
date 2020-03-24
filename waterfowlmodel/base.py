@@ -141,6 +141,6 @@ class Waterfowlmodel:
     :return: Spatial Sum aggregate of aggData within supplied bins
     :rtype:  str
     """
-    newbin = os.path.join(self.scratchgdb, cat + 'bin')
+    newbin = os.path.join(self.scratch, cat + 'bin')
     overlap.SpatialJoinLargestOverlap(bins,aggData,newbin,True, 'largest_overlap')
     return newbin
