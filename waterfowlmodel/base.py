@@ -5,6 +5,7 @@ Defines Waterfowlmodel class which is initialized by supplying an area of intere
 """
 import os, sys, getopt, datetime, logging, arcpy, json
 from arcpy import env
+import waterfowlmodel.SpatialJoinLargestOverlap as overlap
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
@@ -37,6 +38,9 @@ class Waterfowlmodel:
     env.workspace = scratch
 
   def projAlbers(self, inFeature, cat):
+    """
+    Projects data to Albers
+    """
     if arcpy.Describe(inFeature).SpatialReference.Name != 102003:
       print('Projecting:', inFeature)
       outfc = os.path.join(self.scratch, cat + 'aoi')
@@ -58,14 +62,13 @@ class Waterfowlmodel:
       print('Already have {} clipped with aoi'.format(cat))
       logging.info('Already have {} clipped with aoi'.format(cat))
     else:
-      outfc = os.path.join(self.scratch, cat + 'clip')
       print('Clipping:', inFeature)
       logging.info("Clipping features")
       arcpy.Clip_analysis(inFeature, self.aoi, outfc)
     return outfc  
     
 
-  def crossClass(self):
+  def crossClass(self, curclass = 'ATTRIBUTE'):
     """
     Joining large datasets is way too slow and may crash.  Iterating with a check for null will make sure all data is filled.
     """
@@ -77,11 +80,13 @@ class Waterfowlmodel:
       arcpy.AddField_management(self.wetland, 'CLASS', "TEXT", 50)
     # Read data from file:
     dataDict = json.load(open(self.crossTbl))
-    print(dataDict.keys())
-    rows = arcpy.UpdateCursor(self.wetland, where_clause="CLASS='' OR CLASS=' ' OR CLASS is NULL")
+    #print(dataDict.keys())
+    rows = arcpy.UpdateCursor(self.wetland)
     for row in rows:
+      if row.getValue(curclass) != '':
+        continue
       for key,value in dataDict.items():
-        if row.getValue('ATTRIBUTE') in value:
+        if row.getValue(curclass) in value:
           row.setValue('CLASS', key)
           rows.updateRow(row)
 
@@ -95,17 +100,16 @@ class Waterfowlmodel:
     :return: Available habitat feature
     :rtype: str
     """
-    print(self.wetland)
     if len(arcpy.ListFields(self.wetland,'avalNrgy'))>0:
       print("Energy field exists")
     else:
       print("Adding energy field")
       arcpy.AddField_management(self.wetland, 'avalNrgy', "DOUBLE", 9, "", "", "AvailableEnergy")
+    print('Join kcal')
     logging.info('Join kcal')
     if len(arcpy.ListFields(self.wetland,'kcal'))>0:
       print('Already have kcal field.  Deleting it')
       arcpy.DeleteField_management(self.wetland, ['kcal'])
-    print('Join kcal')
     arcpy.JoinField_management(self.wetland, 'CLASS', self.kcalTbl, 'habitatType', ['kcal'])
     print('Calculate energy')
     logging.info("Calculate energy")
@@ -124,17 +128,19 @@ class Waterfowlmodel:
     """
     return "outputFile"
 
-  def bin(self, aggData, aggCol, bins):
+  def bin(self, aggData, bins, cat):
     """
     Calculates proportional sum aggregate based on area within specified columns of a given dataset to features from another dataset.
 
     :param aggData: Dataset that contains information to be aggregated spatially
     :type aggData: str
-    :param aggCol: Columns within aggData that need to have the sum aggregate function applied to them
-    :type aggCol: str
     :param bins: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
     :type bins: str
+    :param cat: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+    :type cat: str    
     :return: Spatial Sum aggregate of aggData within supplied bins
     :rtype:  str
     """
-    return "binned file"
+    newbin = os.path.join(self.scratchgdb, cat + 'bin')
+    overlap.SpatialJoinLargestOverlap(bins,aggData,newbin,True, 'largest_overlap')
+    return newbin
