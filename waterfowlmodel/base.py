@@ -3,13 +3,13 @@ Module Waterfowl
 ================
 Defines Waterfowlmodel class which is initialized by supplying an area of interest shapfile, wetland shapefile, kilocalorie by habitat type table, and the table linking the wetland shapefile to the kcal table.
 """
-import os, sys, getopt, datetime, logging, arcpy, json
+import os, sys, getopt, datetime, logging, arcpy, json, csv
 from arcpy import env
 import waterfowlmodel.SpatialJoinLargestOverlap as overlap
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
-  def __init__(self, aoi, wetland, kcalTable, crosswalk, demand, binIt, scratch):
+  def __init__(self, aoi, wetland, kcalTable, crosswalk, demand, binIt, extra, scratch):
     """
     Creates a waterfowl model object.
     
@@ -35,11 +35,19 @@ class Waterfowlmodel:
     self.crossTbl = crosswalk
     self.demand = self.projAlbers(self.clipStuff(demand, 'demand'), 'demand')
     self.binIt = self.projAlbers(self.clipStuff(binIt, 'bin'), 'bin')
+    self.extra = self.processExtra(extra)
     env.workspace = scratch
 
   def projAlbers(self, inFeature, cat):
     """
     Projects data to Albers
+
+    :param inFeature: Feature to project to Albers
+    :type inFeature: str
+    :param cat: Feature category
+    :type cat: str
+    :return outfc: Location of projected feature
+    :rtype outfc: str    
     """
     if arcpy.Describe(inFeature).SpatialReference.Name != 102003:
       print('Projecting:', inFeature)
@@ -56,6 +64,13 @@ class Waterfowlmodel:
   def clipStuff(self, inFeature, cat):
     """
     Clips wetland to the area of interest.
+
+    :param inFeature: Feature to clip to AOI
+    :type inFeature: str
+    :param cat: Feature category
+    :type cat: str
+    :return outfc: Location of clipped feature
+    :rtype outfc: str
     """
     outfc = os.path.join(self.scratch, cat + 'clip')
     if arcpy.Exists(outfc):
@@ -67,29 +82,78 @@ class Waterfowlmodel:
       arcpy.Clip_analysis(inFeature, self.aoi, outfc)
     return outfc  
     
+  def processExtra(self, extra):
+    """
+    Process all extra energy datasets
 
-  def crossClass(self, curclass = 'ATTRIBUTE'):
+    :param extra: Feature to project to Albers
+    :type extra: list
+    :return cat: Dictionary of data location as keys and cross class table as value
+    :rtype cat: dict
+    """
+    readyExtra = []
+    a=0
+    print(extra)
+    for k in extra.keys():
+      extra[k] = [self.projAlbers(self.clipStuff(extra[k][0], 'extra' + str(a)), 'extra' + str(a)),extra[k][1]]
+      #readyExtra.append(self.projAlbers(self.clipStuff(extra[k][0], 'extra' + str(a)), 'extra' + str(a)))
+      a+=1
+    return extra
+
+  def crossClass(self, inDataset, xTable, curclass = 'ATTRIBUTE'):
     """
     Joining large datasets is way too slow and may crash.  Iterating with a check for null will make sure all data is filled.
+
+    :param inDataset: Feature to be updated with a new 'CLASS' field
+    :type inDataset: str
+    :param xTable: Location of csv or json file with two columns, from class and to class
+    :type xTable: str
+    :param curclass: Field that lists current class within inDataset
+    :type curclass: str.
     """
     logging.info("Calculating habitat")
-    if len(arcpy.ListFields(self.wetland,'CLASS'))>0:
+    print(inDataset)
+    print(xTable)
+    if len(arcpy.ListFields(inDataset,'CLASS'))>0:
       print('Already have CLASS field')
     else:
       print('Add CLASS habitat')
-      arcpy.AddField_management(self.wetland, 'CLASS', "TEXT", 50)
+      arcpy.AddField_management(inDataset, 'CLASS', "TEXT", 50)
     # Read data from file:
-    dataDict = json.load(open(self.crossTbl))
-    #print(dataDict.keys())
-    rows = arcpy.UpdateCursor(self.wetland)
+    filename, file_extension = os.path.splitext(xTable)
+    if file_extension == 'json':
+      dataDict = json.load(open(xTable))
+    else:
+      with open(xTable, mode='r') as infile:
+        reader = csv.reader(infile)
+        dataDict = {rows[0]:rows[1].split(',') for rows in reader}
+    rows = arcpy.UpdateCursor(inDataset)
     for row in rows:
-      if row.getValue(curclass) != '':
-        continue
-      for key,value in dataDict.items():
-        if row.getValue(curclass) in value:
-          row.setValue('CLASS', key)
-          rows.updateRow(row)
+      if row.getValue('CLASS') == '' or row.isNull('CLASS') or row.getValue('CLASS') == None:
+        for key,value in dataDict.items():
+            if row.getValue(curclass).replace(',', '') in value:
+              row.setValue('CLASS', key)
+              rows.updateRow(row)
+      else:
+            continue
+  def joinFeatures(self):
+    """
+    Joins energy layers (Wetland with extra)
 
+    :return: Merged feature location
+    :rtype: str
+    """    
+    #Delete Wetland area from each extra dataset
+    a=0
+    erased = []
+    erased.append(self.wetland)
+    for i in self.extra.keys():
+      #Erase(in_features, erase_features, out_feature_class, {cluster_tolerance})
+      arcpy.Erase_analysis(self.extra[i][0], self.wetland, os.path.join(self.scratch, 'del' + str(i)))     
+      erased.append(os.path.join(self.scratch, 'del' + str(i)))
+      #Union(in_features, out_feature_class, {join_attributes}, {cluster_tolerance}, {gaps})
+      arcpy.Merge_management(erased, os.path.join(self.scratch, 'MergedEnergy'))
+    return os.path.join(self.scratch, 'MergedEnergy')
 
   def prepEnergy(self, habtype = 'ATTRIBUTE'):
     """
@@ -127,6 +191,15 @@ class Waterfowlmodel:
     :rtype: str
     """
     return "outputFile"
+
+  def unionEnergy(self, supply, demand):
+    """
+    Merges all energy features into master.
+
+    :return: Shapefile containing model results at the county level
+    :rtype: str
+    """
+    arcpy.Union_analysis([supply, demand], os.path.join(self.scratch, "BinnedEnergyComparison"))
 
   def bin(self, aggData, bins, cat):
     """

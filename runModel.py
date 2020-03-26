@@ -74,6 +74,7 @@ def main(argv):
    
    # parse the command line
    args = parser.parse_args()
+   print(args)
    if len(argv) < 8:
       printHelp()
       sys.exit(2)    
@@ -105,7 +106,8 @@ def main(argv):
       if len(args.extra)%2 != 0:
          print("Number of extra habitat datasets does not equal crossover tables")
       else:
-         extra = {os.path.join(geodatabase,args.extra[i]): os.path.join(workspace,args.extra[i + 1]) for i in range(0, len(args.extra), 2)}
+         print('Extra datasets')
+         extra = {i:[os.path.join(geodatabase,args.extra[i]), os.path.join(workspace,args.extra[i + 1])] for i in range(0, len(args.extra), 2)}
    binIt = os.path.join(geodatabase,args.binIt[0])
    if not arcpy.Exists(binIt):
       print("Aggregation layer doesn't exist.")
@@ -159,31 +161,35 @@ def main(argv):
    logging.info('Bin layer: ' + binIt)
 
    startT = time.clock()
-   dst = waterfowl.Waterfowlmodel(aoi, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, scratchgdb)
+   dst = waterfowl.Waterfowlmodel(aoi, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, extra, scratchgdb)
    print(time.clock() - startT)
    print('\nAfter dst')
    print('#####################################')
    print('Wetland layer: ', dst.wetland)
+   print('Wetland crossclass: ', dst.crossTbl)   
    print('Energy demand layer: ', dst.demand)
    print('Bin layer: ', dst.binIt)
    print('Region of interest: ', dst.aoi)
    print('Scratch gdb: ', dst.scratch)
    print('#####################################\n')
    startT = time.clock()
-   dst.crossClass()
-   print(time.clock() - startT)
+   print('Wetland crossclass')
+   dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
+   print('Marsh crossclass')
+   dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
+   print('Join features')
+   allEnergy = dst.joinFeatures()
+   print(allEnergy)
+   sys.exit(2)
    print('Prep Energy')
-   startT = time.clock()
    dst.prepEnergy()
-   print(time.clock() - startT)
    print('Bin Wetland')
-   startT = time.clock()
-   wetbin = dst.bin(dst.wetland, dst.binIt, 'wetland')
+   wetbin = dst.bin(allEnergy, dst.binIt, 'EnergySupply')
    print(time.clock() - startT)
    print('Bin Demand')
-   startT = time.clock()
    demandbin = dst.bin(dst.demand, dst.binIt, 'demand')
-   print(time.clock() - startT)
+   print("Combine supply demand")
+   dst.unionEnergy(wetbin, demandbin)
    print('\n Complete')
    print('#####################################\n')
 
