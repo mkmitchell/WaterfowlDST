@@ -120,7 +120,6 @@ class Waterfowlmodel:
       print('Add CLASS habitat')
       arcpy.AddField_management(inDataset, 'CLASS', "TEXT", 50)
     # Read data from file:
-    #filename, file_extension = os.path.splitext(xTable) 
     file_extension = os.path.splitext(xTable)[-1].lower()
     # switched "json" to ".json"
     if file_extension == ".json":
@@ -130,7 +129,7 @@ class Waterfowlmodel:
         reader = csv.reader(infile)
         dataDict = {rows[0]:rows[1].split(',') for rows in reader}
 
-    rows = arcpy.UpdateCursor(inDataset)
+    """    rows = arcpy.UpdateCursor(inDataset)
     for row in rows:
       if row.getValue('CLASS') == '' or row.isNull('CLASS') or row.getValue('CLASS') == None:
         for key,value in dataDict.items():
@@ -138,16 +137,17 @@ class Waterfowlmodel:
               row.setValue('CLASS', key)
               rows.updateRow(row)
       else:
-            continue
-
-  """    with arcpy.da.UpdateCursor(inDataset, [curclass, 'CLASS']) as cursor:
+            continue"""
+    
+    with arcpy.da.UpdateCursor(inDataset, [curclass, 'CLASS']) as cursor:
       for row in cursor:
         if row[1] is None or row[1].strip() == '':
-          if row[0] in dataDict:
-            row[1] = dataDict[row[0]]
-            cursor.updateRow(row)
+          for key, value in dataDict.items():
+            if row[0].replace(',', '') in value:
+              row[1] = key
+              cursor.updateRow(row)
         else:
-          continue"""
+          continue
 
   def joinFeatures(self):
     """
