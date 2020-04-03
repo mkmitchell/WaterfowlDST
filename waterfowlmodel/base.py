@@ -100,7 +100,7 @@ class Waterfowlmodel:
       a+=1
     return extra
 
-  def crossClass(self, inDataset, xTable, curclass = 'ATTRIBUTE'):
+  def crossClass(self, inDataset, xTable, curclass):
     """
     Joining large datasets is way too slow and may crash.  Iterating with a check for null will make sure all data is filled.
 
@@ -120,14 +120,16 @@ class Waterfowlmodel:
       print('Add CLASS habitat')
       arcpy.AddField_management(inDataset, 'CLASS', "TEXT", 50)
     # Read data from file:
-    filename, file_extension = os.path.splitext(xTable)
-    if file_extension == 'json':
+    file_extension = os.path.splitext(xTable)[-1].lower()
+    # switched "json" to ".json"
+    if file_extension == ".json":
       dataDict = json.load(open(xTable))
     else:
       with open(xTable, mode='r') as infile:
         reader = csv.reader(infile)
         dataDict = {rows[0]:rows[1].split(',') for rows in reader}
-    rows = arcpy.UpdateCursor(inDataset)
+
+    """    rows = arcpy.UpdateCursor(inDataset)
     for row in rows:
       if row.getValue('CLASS') == '' or row.isNull('CLASS') or row.getValue('CLASS') == None:
         for key,value in dataDict.items():
@@ -135,7 +137,18 @@ class Waterfowlmodel:
               row.setValue('CLASS', key)
               rows.updateRow(row)
       else:
-            continue
+            continue"""
+    
+    with arcpy.da.UpdateCursor(inDataset, [curclass, 'CLASS']) as cursor:
+      for row in cursor:
+        if row[1] is None or row[1].strip() == '':
+          for key, value in dataDict.items():
+            if row[0].replace(',', '') in value:
+              row[1] = key
+              cursor.updateRow(row)
+        else:
+          continue
+
   def joinFeatures(self):
     """
     Joins energy layers (Wetland with extra)

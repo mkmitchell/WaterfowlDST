@@ -176,7 +176,8 @@ def main(argv):
    print('Wetland crossclass')
    dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
    print('Marsh crossclass')
-   dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
+   # ERROR RAISED
+   # dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
    print('Join features')
    allEnergy = dst.joinFeatures()
    print(allEnergy)
