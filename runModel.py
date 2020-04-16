@@ -7,25 +7,8 @@ runModel is an example of how to utilize the waterfowlmodel module.
 import os, sys, getopt, datetime, logging, arcpy, argparse, time
 import waterfowlmodel.base as waterfowl
 import waterfowlmodel.dataset
-
-def printHelp():
-         """
-         Prints information on how to call this python application from command line
-         """
-         print('\n\nScript created for utilizing the waterfowl module and running energetic calculations for waterfowl.\n'\
-               'Usage: runModel.py -a [Area of interest] -l [Wetland] -k [kcal Table] -c [Crosswalk table] -w [Workspace]\n\n' \
-               'These are the options used to initiate and run the waterfowl model properly.\n\n' \
-               'Startup:\n'
-               '\t-w, --workspace\t\t Folder path where geodatabase and csv files are stored\n' \
-               '\t-g, --geodatabase\t\t Geodatabase that stores features\n' \
-               '\t-l, --wetland\t\t Specify the location of thoe wetland layer to use\n' \
-               '\t-k, --kcalTable\t Specify location of the wetland type enrgy value CSV file\n' \
-               '\t-c, --crosswalk\t\t Specify location of the json file that relates different wetlands types to another\n' \
-               '\t-d, --demand\t\t Specify location of NAWCA stepdown energy demand layer\n' \
-               '\t-b, --bin\t\t Specify location of aggregation layer\n' \
-               '\t-f, --file\t\t Specify a config file full path instead of supplying input via parameters\n'
-               '\t-a, --aoi\t\t Area of interest layer\n')
-         sys.exit(2)
+import waterfowlmodel.publicland
+import waterfowlmodel.AggProportion
 
 def main(argv):
    """
@@ -35,25 +18,22 @@ def main(argv):
    :type workspace: str
    :param geodatabase: Geodatabase with features.
    :type geodatabase: str
-   :param wetland: National Wetlands Inventory shapefile
+   :param wetland: National Wetlands Inventory shapefile and csv file separated by a comma
    :type wetland: str
    :param kcalTable: CSV file containing two columns [habitat type, kilocalorie value by acre]
    :type kcalTable: str
-   :param crosswalk: JSON file relating wetland nwi codes to habitat type
-   :type crosswalk: str
    :param demand: NAWCA Stepdown duck energy layer
    :type demand: str
-   :param aoi: Area of interest shapefile
-   :type aoi: str      
+   :param extra: Extra habitat datasets in format: full path to dataset 1, full path to crosswalk 1, full path to dataset 2, full path to crosswalk
+   :type extra: str
    :param bin: Aggregation layer
-   :type bin: str   
-   :param file: Full config file path
-   :type file: str   
+   :type bin: str      
+   :param aoi: Area of interest shapefile
+   :type aoi: str
    """
    aoi = ''
    wetland = ''
    kcalTable = ''
-   crosswalk = ''
    demand = ''
    binIt=''
    workspace = ''
@@ -66,6 +46,8 @@ def main(argv):
    parser.add_argument('--workspace', '-w', nargs=1, type=str, default='', help="Workspace where geodatabase and csvs are stored")
    parser.add_argument('--geodatabase', '-g', nargs=1, type=str, default='', help="Geodatabase that stores features")
    parser.add_argument('--wetland', '-l', nargs=2, type=str, default=[], help="Specify the name of the wetland layer and csv file separated by a comma")
+   parser.add_argument('--padus', '-p', nargs=1, type=str, default=[], help="Specify the name of the PADUS layer")
+   parser.add_argument('--nced', '-n', nargs=1, type=str, default=[], help="Specify the name of the NCED layer")
    parser.add_argument('--kcalTable', '-k', nargs=1, type=str, default=[], help="Specify the name of the kcal energy table")
    parser.add_argument('--demand', '-d', nargs=1, type=str, default=[], help="Specify name of NAWCA stepdown layer")
    parser.add_argument('--extra', '-e', nargs="*", type=str, default=[], help="Extra habitat datasets in format: full path to dataset 1, full path to crosswalk 1, full path to dataset 2, full path to crosswalk")
@@ -76,7 +58,7 @@ def main(argv):
    args = parser.parse_args()
    print(args)
    if len(argv) < 8:
-      printHelp()
+      parser.print_help()
       sys.exit(2)    
    workspace = args.workspace[0]
    if not (os.path.exists(workspace)):
@@ -93,6 +75,14 @@ def main(argv):
       sys.exit(2)
    if not arcpy.Exists(wetlandX):
       print("Wetland crosswalk doesn't exist.")
+      sys.exit(2)
+   padus = os.path.join(geodatabase,args.padus[0])
+   if not arcpy.Exists(padus):
+      print("PADUS layer doesn't exist.", padus)
+      sys.exit(2)
+   nced = os.path.join(geodatabase,args.nced[0])
+   if not arcpy.Exists(nced):
+      print("NCED layer doesn't exist.", nced)
       sys.exit(2)
    kcalTable = os.path.join(workspace,args.kcalTable[0])
    if not arcpy.Exists(kcalTable):
@@ -133,12 +123,16 @@ def main(argv):
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + args.aoi[0] + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
    demand = waterfowlmodel.dataset.Dataset(demand, scratchgdb)
+   padus = waterfowlmodel.dataset.Dataset(padus, scratchgdb)
+   nced = waterfowlmodel.dataset.Dataset(nced, scratchgdb)
    
    print('\nINPUT')
    print('#####################################')
    print('Workspace: ', workspace)
    print('Wetland layer: ', wetland.inData)
    print('Wetland crosswalk: ', wetland.crosswalk)
+   print('PAD layer: ', padus.inData)
+   print('NCED layer: ', nced.inData)
    print('Geodatabase: ', geodatabase)
    print('Kcal Table: ', kcalTable)
    print('Energy demand layer: ', demand.inData)
@@ -174,23 +168,31 @@ def main(argv):
    print('#####################################\n')
    startT = time.clock()
    print('Wetland crossclass')
-   dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
+   #dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
    print('Marsh crossclass')
-   # ERROR RAISED
-   # dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
+   #dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
    print('Join features')
    allEnergy = dst.joinFeatures()
-   print(allEnergy)
-   sys.exit(2)
    print('Prep Energy')
-   dst.prepEnergy()
+   #dst.prepEnergy()
    print('Bin Wetland')
-   wetbin = dst.bin(allEnergy, dst.binIt, 'EnergySupply')
+   #wetbin = dst.bin(allEnergy, dst.binIt, 'EnergySupply')
+   wetbin = waterfowlmodel.AggProportion.AggregateProportion.aggproportion(dst.binIt, allEnergy, "OBJECTID", ["avalNrgy"], ["HUC12"], dst.scratch, "wetenergy")
    print(time.clock() - startT)
    print('Bin Demand')
-   demandbin = dst.bin(dst.demand, dst.binIt, 'demand')
+   #demandbin = dst.bin(dst.demand, dst.binIt, 'demand')
+   demandbin = waterfowlmodel.AggProportion.AggregateProportion.aggproportion(dst.binIt, dst.demand, "OBJECTID", ["LTADUD"], ["HUC12"], dst.scratch, "energydemand")
    print("Combine supply demand")
-   dst.unionEnergy(wetbin, demandbin)
+   #dst.unionEnergy(wetbin, demandbin)
+   print('Public land')
+   nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
+   padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
+   print('bin nced')
+   ncedbin = waterfowlmodel.AggProportion.AggregateProportion.aggproportion(nced.binIt, nced.land, "OBJECTID", ["gis_acres"], ["HUC12"], dst.scratch, "nced")
+   print(ncedbin)
+   print('bin padus')
+   padusbin = waterfowlmodel.AggProportion.AggregateProportion.aggproportion(padus.binIt, padus.land, "OBJECTID", ["gis_acres"], ["HUC12"], dst.scratch, "pad")
+   print(padusbin)
    print('\n Complete')
    print('#####################################\n')
 
