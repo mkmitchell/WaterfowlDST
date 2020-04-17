@@ -126,3 +126,6 @@ dmypy.json
 
 # Editor
 .vscode/
+
+# File that makes  testing the command easier
+test.bat
