@@ -204,7 +204,7 @@ class Waterfowlmodel:
 
   def bin(self, aggData, bins, cat):
     """
-    Calculates proportional sum aggregate based on area within specified columns of a given dataset to features from another dataset.
+    Aggregate sum based on maximum area overlap.
 
     :param aggData: Dataset that contains information to be aggregated spatially
     :type aggData: str
@@ -220,6 +220,29 @@ class Waterfowlmodel:
     return newbin
 
   def aggproportion(aggTo, aggData, IDField, aggFields, dissolveFields, scratch, cat,aggStat = 'SUM'):
+    """
+    Calculates proportional sum aggregate based on area within specified columns of a given dataset to features from another dataset.
+
+    :param aggTo: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+    :type aggTo: str
+    :param aggData: Spatial data to be aggregated
+    :type aggData: str
+    :param IDField: ID field used for data aggregation
+    :type IDField: str
+    :param aggFields: Field for aggregation
+    :type aggFields: str
+    :param dissolveFields: Field for dissolving bins after union
+    :type dissolveFields: str
+    :param scratch: Scratch geodatabase location
+    :type scratch: str  
+    :param cat: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+    :type cat: str
+    :param aggStat: Aggregation statistic.  Default is SUM
+    :type aggStat: str    
+    :return: Spatial Sum aggregate of aggData within supplied bins
+    :rtype:  str
+    """
+
     # Script arguments
     Aggregation_feature = aggTo
     Data_to_aggregate = aggData

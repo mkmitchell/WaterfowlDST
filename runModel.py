@@ -1,14 +1,13 @@
 """
 runModel
-========
-runModel is an example of how to utilize the waterfowlmodel module.
+============
+runModel is my implementation of utilizing the Waterfowlmodel class to calculate energy demand, supply, and public land acreages within an area of interest.
 """
 
 import os, sys, getopt, datetime, logging, arcpy, argparse, time
 import waterfowlmodel.base as waterfowl
 import waterfowlmodel.dataset
 import waterfowlmodel.publicland
-import waterfowlmodel.AggProportion
 
 def main(argv):
    """

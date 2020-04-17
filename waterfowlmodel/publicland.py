@@ -1,17 +1,17 @@
 """
-Module Waterfowl
-================
-Defines Waterfowlmodel class which is initialized by supplying an area of interest shapfile, wetland shapefile, kilocalorie by habitat type table, and the table linking the wetland shapefile to the kcal table.
+Module Publicland
+===================
+Defines Public land dataset which is used to organize and handle features from NCED and PADUS.
 """
 import os, sys, getopt, datetime, logging, arcpy, json, csv
 from arcpy import env
 import waterfowlmodel.SpatialJoinLargestOverlap as overlap
 
 class PublicLand:
-  """Class to store waterfowl model parameters."""
+  """Class to store public land parameters."""
   def __init__(self, aoi, land, name, binIt, scratch):
     """
-    Creates a waterfowl model object.
+    Creates a Public lands object.
     
     :param aoi: Area of interest shapefile
     :type aoi: str

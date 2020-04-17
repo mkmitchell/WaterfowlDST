@@ -1,7 +1,7 @@
 """
 Module Dataset
 ================
-Defines Dataset class which is initialized by supplying habitat and the crosswalk table.
+Defines Dataset class which is initialized by supplying habitat and the crosswalk table.  It's used for organizing spatial datasets.
 """
 import os, sys, getopt, datetime, logging, arcpy
 from arcpy import env
@@ -14,10 +14,10 @@ class Dataset:
     
     :param inData: Dataset input
     :type inData: str
+    :param scratch: Scratch geodatabase location
+    :type scratch: str    
     :param crosswalk: CSV file relating habitat types
     :type crosswalk: str
-    :param scratch: Scratch geodatabase location
-    :type scratch: str
     """
     self.inData = inData
     self.crosswalk = crosswalk

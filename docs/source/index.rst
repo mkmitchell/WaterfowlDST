@@ -12,6 +12,9 @@ Welcome to ABDU DST's documentation!
 
    base
    runModel
+   dataset
+   publicland
+   mergeNWIDict
 
 Indices and tables
 ==================
