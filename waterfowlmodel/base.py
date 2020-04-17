@@ -23,8 +23,8 @@ class Waterfowlmodel:
     :type crosswalk: str
     :param demand: NAWCA stepdown DUD objectives
     :type demand: str
-    :param bin: Aggregation feature
-    :type bin: str    
+    :param binIt: Aggregation feature
+    :type binIt: str    
     :param scratch: Scratch geodatabase location
     :type scratch: str
     """
@@ -218,3 +218,25 @@ class Waterfowlmodel:
     newbin = os.path.join(self.scratch, cat + 'bin')
     overlap.SpatialJoinLargestOverlap(bins,aggData,newbin,True, 'largest_overlap')
     return newbin
+
+  def aggproportion(aggTo, aggData, IDField, aggFields, dissolveFields, scratch, cat,aggStat = 'SUM'):
+    # Script arguments
+    Aggregation_feature = aggTo
+    Data_to_aggregate = aggData
+    Fields_to_aggregate = aggFields
+    FieldsToAgg = IDField + ' ' + IDField + ' VISIBLE NONE;'
+    AggStats = ''
+    for a in aggFields:
+        FieldsToAgg = FieldsToAgg + a + ' ' + a + ' VISIBLE RATIO'
+        AggStats = AggStats +  a + ' ' + aggStat
+    WFSD_BCR = aggTo
+    Dissolve_Field_s_ = [dissolveFields]
+    # Local variables:
+    outLayer = os.path.join(scratch, 'aggproptemp' + cat)
+    outLayerI = os.path.join(scratch, 'aggUnion' + cat)
+    aggToOut = os.path.join(scratch, 'aggTo' + cat)
+    # Process: Make Feature Layer
+    arcpy.MakeFeatureLayer_management(aggData, outLayer, "", "", FieldsToAgg)
+    arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
+    arcpy.Dissolve_management(in_features=outLayerI, out_feature_class=aggToOut, dissolve_field=Dissolve_Field_s_, statistics_fields=AggStats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+    return aggToOut    

@@ -1,4 +1,2 @@
 @ECHO OFF
-: python runModel.py -w "D:\GIS\scratch\dst" -g ModelReady.gdb -l testnwi aoiWetland.json -k kcal.csv -d EnergyDemand  -a testJV -b HUC12
-
-python D:\bitbucket_rename\abdu_dst\runModel.py -w "C:\Users\jskillman\Ducks Unlimited Incorporated\GIS Department - ABDU DST and more!\GIS\ModelReady" -g ModelReady.gdb -l testnwi aoiWetland.json -k kcal.csv -d EnergyDemand  -a testJV -b huc12
+python runModel.py -w "path to workspace where geodatabase and csvs are kept" -g Geodatabase_name.gdb -l NWILayer_name NWI_crossover.json -p PADUS_name -n NCED_name -k kcal_table.csv -d EnergyDemand_layer_name -e Extradataset1_layer_name Extradataset_crossover.csv -a AreaofInterest_name -b Bin_layer_name
