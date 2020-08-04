@@ -17,7 +17,7 @@ class PublicLand:
     :type aoi: str
     :param land: Public land location
     :type land: str
-    :param name: NAme of public land
+    :param name: Name of public land
     :type name: str    
     :param binIt: Aggregation feature
     :type binIt: str    
@@ -43,9 +43,9 @@ class PublicLand:
     :rtype outfc: str    
     """
     if arcpy.Describe(inFeature).SpatialReference.Name != 102003:
-      print('Projecting:', inFeature)
       outfc = os.path.join(self.scratch, cat + 'aoi')
       if not (arcpy.Exists(outfc)):
+        print('Projecting:', inFeature)
         arcpy.Project_management(inFeature, outfc, arcpy.SpatialReference(102003))
         return outfc
       else:

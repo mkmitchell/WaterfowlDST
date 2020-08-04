@@ -29,8 +29,11 @@ def main(argv):
    :type bin: str      
    :param aoi: Area of interest shapefile
    :type aoi: str
+   :param binUnique: Area of interest unique column identifier
+   :type binUnique: str   
    """
    aoi = ''
+   binUnique = ''
    wetland = ''
    kcalTable = ''
    demand = ''
@@ -52,7 +55,9 @@ def main(argv):
    parser.add_argument('--demand', '-d', nargs=1, type=str, default=[], help="Specify name of NAWCA stepdown layer")
    parser.add_argument('--extra', '-e', nargs="*", type=str, default=[], help="Extra habitat datasets in format: full path to dataset 1, full path to crosswalk 1, full path to dataset 2, full path to crosswalk")
    parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
+   parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
+   
    
    # parse the command line
    args = parser.parse_args()
@@ -119,6 +124,8 @@ def main(argv):
    if not (arcpy.Exists(aoi)):
             print("aoi layer doesn't exist.")
             sys.exit(2)
+   if len(arcpy.ListFields(aoi,binUnique))>0:
+      print("AOI field doesn't have the unique identifier.")
        
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + args.aoi[0] + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
@@ -155,7 +162,7 @@ def main(argv):
    logging.info('Bin layer: ' + binIt)
 
    startT = time.clock()
-   dst = waterfowl.Waterfowlmodel(aoi, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, extra, scratchgdb)
+   dst = waterfowl.Waterfowlmodel(aoi, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, binUnique, extra, scratchgdb)
    print(time.clock() - startT)
    print('\nAfter dst')
    print('#####################################')
@@ -171,36 +178,82 @@ def main(argv):
    #dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
    print('Marsh crossclass')
    #dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
-   print('Join features')
+   print('Join habitats')
    allEnergy = dst.joinFeatures()
    print('Prep Energy')
    #dst.prepEnergy()
-   print('Bin Wetland')
+   print('Bin habitat supply')
    #wetbin = dst.bin(allEnergy, dst.binIt, 'EnergySupply')
-   wetbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, allEnergy, "OBJECTID", ["avalNrgy"], ["HUC12"], dst.scratch, "supplyenergy")
-   arcpy.AlterField_management(wetbin, 'SUM_avalNrgy', 'avalNrgy', 'avalNrgy')
+   wetbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, allEnergy, "OBJECTID", ["avalNrgy", "CalcAcre"], ["HUC12"], dst.scratch, "supplyenergy")
+   if not len(arcpy.ListFields(wetbin,'THabNrg'))>0:
+      arcpy.AlterField_management(wetbin, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
+   if not len(arcpy.ListFields(wetbin,'THabAcre'))>0:      
+      arcpy.AlterField_management(wetbin, 'SUM_CalcAcre', 'THabAcre', 'TotalHabitatAcre')
    mergebin.append(wetbin)
-   print(time.clock() - startT)
    print('Bin Demand')
    #demandbin = dst.bin(dst.demand, dst.binIt, 'demand')
-   demandbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.demand, "OBJECTID", ["LTADUD"], ["HUC12"], dst.scratch, "energydemand")
-   arcpy.AlterField_management(demandbin, 'SUM_LTADUD', 'LTADUD', 'LTADUD')
+   demandbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.demand, "OBJECTID", ["LTADUD", "LTADemand"], ["HUC12"], dst.scratch, "energydemand")
+   print(demandbin)
+   if not len(arcpy.ListFields(demandbin,'TLTADUD'))>0:
+      arcpy.AlterField_management(demandbin, 'SUM_LTADUD', 'TLTADUD', 'TotalLTADUD')
+   if not len(arcpy.ListFields(demandbin,'TLTADmnd'))>0:
+      arcpy.AlterField_management(demandbin, 'SUM_LTADemand', 'TLTADmnd', 'TotalLTADemand')
    mergebin.append(demandbin)
-   print("Combine supply demand")
+   print("Combine supply and demand")
    #dst.unionEnergy(wetbin, demandbin)
-   print('Public land')
+   print('Public lands prep')
    nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
    padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
-   print('bin nced')
-   ncedbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(nced.binIt, nced.land, "OBJECTID", ["gis_acres"], ["HUC12"], dst.scratch, "nced")
-   arcpy.AlterField_management(ncedbin, 'SUM_gis_acres', 'NCEDAcre', 'NCEDAcre')
-   mergebin.append(ncedbin)
-   print('bin padus')
-   padusbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(padus.binIt, padus.land, "OBJECTID", ["gis_acres"], ["HUC12"], dst.scratch, "pad")
-   arcpy.AlterField_management(padusbin, 'SUM_gis_acres', 'PADAcre', 'PADAcre')
-   mergebin.append(padusbin)
+   print('Public lands ready.  Analyzing')
+   dst.prepProtected(nced.land, padus.land)
+   print('Bin protected lands')
+   protectedbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["gis_acres"], ["HUC12"], dst.scratch, "protectedbin")
+   print(protectedbin)
+   if not len(arcpy.ListFields(protectedbin,'ProtAcre'))>0:
+      arcpy.AlterField_management(protectedbin, 'SUM_gis_acres', 'ProtAcre', 'ProtectedAcres')
+   mergebin.append(protectedbin)
+   print('Calculate and bin protected habitat energy and acres')
+   dst.calcProtected()
+   protectedenergybin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.protectedEnergy, "OBJECTID", ["CalcAcre", "avalNrgy"], ["HUC12"], dst.scratch, "protectedEnergy")
+   if not len(arcpy.ListFields(protectedenergybin,'ProtHabAc'))>0:
+      arcpy.AlterField_management(protectedenergybin, 'SUM_CalcAcre', 'ProtHabAc', 'ProtectedHabitatAcres')
+   if not len(arcpy.ListFields(protectedenergybin,'ProtHabNrg'))>0:      
+      arcpy.AlterField_management(protectedenergybin, 'SUM_avalNrgy', 'ProtHabNrg', 'ProtectedHabitatEnergy')
+   mergebin.append(protectedenergybin)
    print('Merge it all')
-   arcpy.Merge_management(mergebin, os.path.join(scratchgdb, 'AllDataBin'))
+   print(mergebin)
+   if not arcpy.Exists(os.path.join(scratchgdb, 'AllDataBintemp')):
+      arcpy.Merge_management(mergebin, os.path.join(scratchgdb, 'AllDataBintemp'))
+   """
+   supplyenergy
+	Total habitat energy within huc - THabNrg
+	Total habitat acres within huc - THabAcre
+
+   energydemand
+      LTA DUD by huc - TLTADUD
+      LTA Demand by huc - TLTADmnd
+      
+   protected
+      Total protected acres by huc - ProtAcre
+
+   Protected habitat acres and energy
+      total protected acres - ProtHabAc
+      Total protectedf energy - ProtHabNrg
+	"""
+   print('Dissolving features and fixing fields')
+   if not arcpy.Exists(os.path.join(scratchgdb, 'AllDataBintemp')):
+      arcpy.Dissolve_management(in_features=os.path.join(scratchgdb, 'AllDataBintemp'), out_feature_class=os.path.join(scratchgdb, 'AllDataBin'), dissolve_field="HUC12", statistics_fields="THabNrg SUM;THabAcre SUM;TLTADUD SUM;TLTADmnd SUM;ProtAcre SUM;ProtHabAc SUM;ProtHabNrg SUM;", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_THabNrg', 'THabNrg', 'TotalHabitatEnergy')
+      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_THabAcre', 'THabAcre', 'TotalHabitatAcres')
+      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_TLTADUD', 'TLTADUD', 'TotalLTADUD')
+      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_TLTADmnd', 'TLTADmnd', 'TotalLTADemand')
+      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_ProtAcre', 'ProtAcre', 'TotalProtectedAcres')
+      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_ProtHabAc', 'ProtHabAc', 'ProtectedHabitatAcres')
+      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_ProtHabNrg', 'ProtHabNrg', 'ProtectedHabitatEnergy')
+   print('Calculate habitat percentages')
+   habpct = dst.pctHabitatType()
+   print(habpct)
+   print(time.clock() - startT)
    print('\n Complete')
    print('#####################################\n')
 

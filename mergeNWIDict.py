@@ -13,7 +13,7 @@ def main(argv):
 
     :param geodatabase: Geodatabase with tables.
     :type workspace: str
-    :param wildcard: Wildcard all tables to be merged start with
+    :param wildcard: Wildcard is the beginning of all tables to be merged.  Example tables: [Q01, Q02, Q03]. Set wildcard to "Q*"
     :type geodatabase: str 
     """
     opts, args = getopt.getopt(argv,"g:w:",["geodatabase=", "wildcard="])
@@ -27,6 +27,7 @@ def main(argv):
 
     # Get and print a list of tables
     tables = arcpy.ListTables(wld)
+    print(tables)
     tblDict = {}
     for table in tables:
         print(table)

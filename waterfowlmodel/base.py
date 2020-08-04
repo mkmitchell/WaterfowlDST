@@ -6,10 +6,11 @@ Defines Waterfowlmodel class which is initialized by supplying an area of intere
 import os, sys, getopt, datetime, logging, arcpy, json, csv
 from arcpy import env
 import waterfowlmodel.SpatialJoinLargestOverlap as overlap
+import pandas as pd
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
-  def __init__(self, aoi, wetland, kcalTable, crosswalk, demand, binIt, extra, scratch):
+  def __init__(self, aoi, wetland, kcalTable, crosswalk, demand, binIt, binUnique, extra, scratch):
     """
     Creates a waterfowl model object.
     
@@ -24,18 +25,24 @@ class Waterfowlmodel:
     :param demand: NAWCA stepdown DUD objectives
     :type demand: str
     :param binIt: Aggregation feature
-    :type binIt: str    
+    :type binIt: str
+    :param binUnique: Unique field of aggregation feature
+    :type binUnique: str        
     :param scratch: Scratch geodatabase location
     :type scratch: str
     """
     self.scratch = scratch
     self.aoi = self.projAlbers(aoi, 'aoi')
+    self.binUnique = binUnique
     self.wetland = self.projAlbers(self.clipStuff(wetland, 'wetland'), 'wetland')
     self.kcalTbl = kcalTable
     self.crossTbl = crosswalk
     self.demand = self.projAlbers(self.clipStuff(demand, 'demand'), 'demand')
     self.binIt = self.projAlbers(self.clipStuff(binIt, 'bin'), 'bin')
     self.extra = self.processExtra(extra)
+    self.mergedenergy = os.path.join(self.scratch, 'MergedEnergy')
+    self.protectedMerge = os.path.join(self.scratch, 'MergedProtLands')
+    self.protectedEnergy = os.path.join(self.scratch, 'protectedEnergy')
     env.workspace = scratch
 
   def projAlbers(self, inFeature, cat):
@@ -145,6 +152,9 @@ class Waterfowlmodel:
     :rtype: str
     """    
     #Delete Wetland area from each extra dataset
+    if arcpy.Exists(self.mergedenergy):
+      print('Already joined habitat supply')
+      return self.mergedenergy
     a=0
     erased = []
     erased.append(self.wetland)
@@ -153,8 +163,8 @@ class Waterfowlmodel:
       arcpy.Erase_analysis(self.extra[i][0], self.wetland, os.path.join(self.scratch, 'del' + str(i)))     
       erased.append(os.path.join(self.scratch, 'del' + str(i)))
       #Union(in_features, out_feature_class, {join_attributes}, {cluster_tolerance}, {gaps})
-      arcpy.Merge_management(erased, os.path.join(self.scratch, 'MergedEnergy'))
-    return os.path.join(self.scratch, 'MergedEnergy')
+      arcpy.Merge_management(erased, self.mergedenergy)
+    return self.mergedenergy
 
   def prepEnergy(self, habtype = 'ATTRIBUTE'):
     """
@@ -195,7 +205,7 @@ class Waterfowlmodel:
 
   def unionEnergy(self, supply, demand):
     """
-    Merges all energy features into master.
+    Merges all energy features into one feature.
 
     :return: Shapefile containing model results at the county level
     :rtype: str
@@ -251,7 +261,7 @@ class Waterfowlmodel:
     AggStats = ''
     for a in aggFields:
         FieldsToAgg = FieldsToAgg + a + ' ' + a + ' VISIBLE RATIO'
-        AggStats = AggStats +  a + ' ' + aggStat
+        AggStats = AggStats +  a + ' ' + aggStat + ';'
     WFSD_BCR = aggTo
     Dissolve_Field_s_ = [dissolveFields]
     # Local variables:
@@ -259,7 +269,59 @@ class Waterfowlmodel:
     outLayerI = os.path.join(scratch, 'aggUnion' + cat)
     aggToOut = os.path.join(scratch, 'aggTo' + cat)
     # Process: Make Feature Layer
-    arcpy.MakeFeatureLayer_management(aggData, outLayer, "", "", FieldsToAgg)
-    arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
+    if arcpy.Exists(aggToOut):
+      print('Already dissolved and aggregated everything')
+      return aggToOut
+    else:
+      arcpy.MakeFeatureLayer_management(aggData, outLayer, "", "", FieldsToAgg)
+      arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
+    # Replace a layer/table view name with a path to a dataset (which can be a layer file) or create the layer/table view within the script
+    # The following inputs are layers or table views: "aggUnionprotectedEnergy"
+    #arcpy.Dissolve_management(in_features="aggUnionprotectedEnergy", out_feature_class="D:/OneDrive - Ducks Unlimited Incorporated/Documents/ArcGIS/Default.gdb/aggUnionprotectedEnergy_Diss", dissolve_field="HUC12", statistics_fields="avalNrgy SUM;CalcAcre SUM", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     arcpy.Dissolve_management(in_features=outLayerI, out_feature_class=aggToOut, dissolve_field=Dissolve_Field_s_, statistics_fields=AggStats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     return aggToOut    
+
+  def calcProtected(self):
+    """
+    Creates attribute for acres of habitat and acres of protected habitat
+    """
+    # Create attribute for total habitat acres.
+    # clip merged energy with protected lands and calculate acres.  Create attribute for it.
+    if not arcpy.Exists(self.protectedEnergy):
+      arcpy.Clip_analysis(self.mergedenergy, self.protectedMerge, self.protectedEnergy)
+      arcpy.CalculateField_management(in_table=self.protectedEnergy, field="CalcAcre", expression="!shape.area@acres!", expression_type="PYTHON_9.3", code_block="")
+      arcpy.CalculateField_management(in_table=self.protectedEnergy, field="avalNrgy", expression="!CalcAcre!* !kcal!", expression_type="PYTHON_9.3", code_block="")
+
+  def prepProtected(self, nced, padus):
+    """
+    Prepares protected lands by merging nced and padus by deleting NCED from PAD and running a union.
+    """
+    #Erase(in_features, erase_features, out_feature_class, {cluster_tolerance})
+    if not arcpy.Exists(os.path.join(self.scratch, 'delncedfrompad')):
+      arcpy.Erase_analysis(padus, nced, os.path.join(self.scratch, 'delncedfrompad'))
+    #Union(in_features, out_feature_class, {join_attributes}, {cluster_tolerance}, {gaps})
+    if not arcpy.Exists(self.protectedMerge):
+      arcpy.Merge_management([nced, os.path.join(self.scratch, 'delncedfrompad')], self.protectedMerge)
+
+  def pctHabitatType(self):
+    """
+    Calculates proportion of habitat type by bin unit.
+    """
+    print(os.path.join(self.scratch, "HabitatInAOI"))
+    arcpy.RepairGeometry_management(self.mergedenergy)
+    arcpy.RepairGeometry_management(self.aoi)
+    if not arcpy.Exists(os.path.join(self.scratch, "HabitatInAOI")):
+      arcpy.Union_analysis([self.mergedenergy, self.aoi], os.path.join(self.scratch, "HabitatInAOI"))
+    if not arcpy.Exists(os.path.join(os.path.dirname(self.scratch),'tbl.csv')):  
+      arcpy.TableToTable_conversion(in_rows=os.path.join(self.scratch, "HabitatInAOI"), out_path=os.path.dirname(self.scratch), out_name="tbl.csv", where_clause="", config_keyword="")
+    print('Converting to pandas')
+    df = pd.read_csv(os.path.join(os.path.dirname(self.scratch),'tbl.csv'))
+    df1 = df.groupby([binUnique]).CalcAcre.sum()
+    df['pct'] = df['CalcAcre']/pd.merge(df, df1, on=[binUnique,binUnique],how='left')['CalcAcre_y']*100
+    outdf = df.pivot(index=binUnique, columns='CLASS', values='CalcAcre')
+    outnp = np.array(np.rec.fromrecords(outdf.values))
+    names = outdf.dtypes.index.tolist()
+    outnp.dtype.names = tuple(names)
+    print('Back to ESRI')
+    arcpy.da.NumPyArrayToTable(outnp, os.path.join(self.scratch, 'HabitatPct'))
+    return os.path.join(self.scratch, 'HabitatPct')
