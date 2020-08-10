@@ -58,7 +58,6 @@ def main(argv):
    parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
    
-   
    # parse the command line
    args = parser.parse_args()
    print(args)
@@ -107,6 +106,10 @@ def main(argv):
    if not arcpy.Exists(binIt):
       print("Aggregation layer doesn't exist.")
       sys.exit(2)
+   binUnique = args.binUnique[0]      
+   if not len(arcpy.ListFields(binIt,binUnique))>0:
+      print("AOI field doesn't have the unique identifier.")
+      sys.exit(2)
    aoi = os.path.join(geodatabase,args.aoi[0])
    if not (os.path.exists(os.path.join(workspace, args.aoi[0]))):
       print('Creating project folder: ', os.path.join(os.path.join(workspace, args.aoi[0])))
@@ -124,8 +127,6 @@ def main(argv):
    if not (arcpy.Exists(aoi)):
             print("aoi layer doesn't exist.")
             sys.exit(2)
-   if len(arcpy.ListFields(aoi,binUnique))>0:
-      print("AOI field doesn't have the unique identifier.")
        
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + args.aoi[0] + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
@@ -144,6 +145,7 @@ def main(argv):
    print('Kcal Table: ', kcalTable)
    print('Energy demand layer: ', demand.inData)
    print('Bin layer: ', binIt)
+   print('Bin unique: ', binUnique)
    print('Extra datasets: ', extra)   
    print('Region of interest: ', aoi)
    print('Scratch gdb: ', scratchgdb)
@@ -160,6 +162,7 @@ def main(argv):
    logging.info('Kcal table: ' + kcalTable)
    logging.info('Energy demand: ' + demand.inData)
    logging.info('Bin layer: ' + binIt)
+   logging.info('Bin unique: ' + binUnique)
 
    startT = time.clock()
    dst = waterfowl.Waterfowlmodel(aoi, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, binUnique, extra, scratchgdb)
@@ -175,15 +178,17 @@ def main(argv):
    print('#####################################\n')
    startT = time.clock()
    print('Wetland crossclass')
-   #dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
+   dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
    print('Marsh crossclass')
-   #dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
+   dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
+   print('Impoundments crossclass')
+   dst.crossClass(dst.extra[1][0], dst.extra[1][1])
    print('Join habitats')
    allEnergy = dst.joinFeatures()
    print('Prep Energy')
-   #dst.prepEnergy()
+   dst.prepEnergy()
    print('Bin habitat supply')
-   #wetbin = dst.bin(allEnergy, dst.binIt, 'EnergySupply')
+   wetbin = dst.bin(allEnergy, dst.binIt, 'EnergySupply')
    wetbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, allEnergy, "OBJECTID", ["avalNrgy", "CalcAcre"], ["HUC12"], dst.scratch, "supplyenergy")
    if not len(arcpy.ListFields(wetbin,'THabNrg'))>0:
       arcpy.AlterField_management(wetbin, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
@@ -191,7 +196,7 @@ def main(argv):
       arcpy.AlterField_management(wetbin, 'SUM_CalcAcre', 'THabAcre', 'TotalHabitatAcre')
    mergebin.append(wetbin)
    print('Bin Demand')
-   #demandbin = dst.bin(dst.demand, dst.binIt, 'demand')
+   demandbin = dst.bin(dst.demand, dst.binIt, 'demand')
    demandbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.demand, "OBJECTID", ["LTADUD", "LTADemand"], ["HUC12"], dst.scratch, "energydemand")
    print(demandbin)
    if not len(arcpy.ListFields(demandbin,'TLTADUD'))>0:
@@ -200,7 +205,7 @@ def main(argv):
       arcpy.AlterField_management(demandbin, 'SUM_LTADemand', 'TLTADmnd', 'TotalLTADemand')
    mergebin.append(demandbin)
    print("Combine supply and demand")
-   #dst.unionEnergy(wetbin, demandbin)
+   mergebin.append(dst.unionEnergy(wetbin, demandbin))
    print('Public lands prep')
    nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
    padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
@@ -220,6 +225,9 @@ def main(argv):
    if not len(arcpy.ListFields(protectedenergybin,'ProtHabNrg'))>0:      
       arcpy.AlterField_management(protectedenergybin, 'SUM_avalNrgy', 'ProtHabNrg', 'ProtectedHabitatEnergy')
    mergebin.append(protectedenergybin)
+   print('Calculate habitat percentages')
+   habpct = dst.pctHabitatType()
+   mergebin.append(habpct)
    print('Merge it all')
    print(mergebin)
    if not arcpy.Exists(os.path.join(scratchgdb, 'AllDataBintemp')):
@@ -241,8 +249,12 @@ def main(argv):
       Total protectedf energy - ProtHabNrg
 	"""
    print('Dissolving features and fixing fields')
-   if not arcpy.Exists(os.path.join(scratchgdb, 'AllDataBintemp')):
-      arcpy.Dissolve_management(in_features=os.path.join(scratchgdb, 'AllDataBintemp'), out_feature_class=os.path.join(scratchgdb, 'AllDataBin'), dissolve_field="HUC12", statistics_fields="THabNrg SUM;THabAcre SUM;TLTADUD SUM;TLTADmnd SUM;ProtAcre SUM;ProtHabAc SUM;ProtHabNrg SUM;", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+   if not arcpy.Exists(os.path.join(scratchgdb, 'AllDataBin')):
+      fields = "THabNrg SUM;THabAcre SUM;TLTADUD SUM;TLTADmnd SUM;ProtAcre SUM;ProtHabAc SUM;ProtHabNrg SUM;SurpDef SUM;"
+      for field in dst.kcalList:
+         fields+= field + " SUM;"
+      print(fields)
+      arcpy.Dissolve_management(in_features=os.path.join(scratchgdb, 'AllDataBintemp'), out_feature_class=os.path.join(scratchgdb, 'AllDataBin'), dissolve_field="HUC12", statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_THabNrg', 'THabNrg', 'TotalHabitatEnergy')
       arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_THabAcre', 'THabAcre', 'TotalHabitatAcres')
       arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_TLTADUD', 'TLTADUD', 'TotalLTADUD')
@@ -250,9 +262,10 @@ def main(argv):
       arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_ProtAcre', 'ProtAcre', 'TotalProtectedAcres')
       arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_ProtHabAc', 'ProtHabAc', 'ProtectedHabitatAcres')
       arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_ProtHabNrg', 'ProtHabNrg', 'ProtectedHabitatEnergy')
-   print('Calculate habitat percentages')
-   habpct = dst.pctHabitatType()
-   print(habpct)
+      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_SurpDef', 'SurpDef', 'EnergySurplusDeficit')
+      for field in dst.kcalList:
+         arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_'+field, field, field)
+         arcpy.CalculateField_management(in_table=os.path.join(scratchgdb, 'AllDataBin'), field=field, expression="abs( !SurpDef!) * !"+field+"! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
    print(time.clock() - startT)
    print('\n Complete')
    print('#####################################\n')

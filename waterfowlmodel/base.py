@@ -7,6 +7,8 @@ import os, sys, getopt, datetime, logging, arcpy, json, csv
 from arcpy import env
 import waterfowlmodel.SpatialJoinLargestOverlap as overlap
 import pandas as pd
+import numpy as np
+from arcgis.features import FeatureLayer, GeoAccessor
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
@@ -33,16 +35,18 @@ class Waterfowlmodel:
     """
     self.scratch = scratch
     self.aoi = self.projAlbers(aoi, 'aoi')
-    self.binUnique = binUnique
     self.wetland = self.projAlbers(self.clipStuff(wetland, 'wetland'), 'wetland')
     self.kcalTbl = kcalTable
+    self.kcalList = self.getHabList()
     self.crossTbl = crosswalk
     self.demand = self.projAlbers(self.clipStuff(demand, 'demand'), 'demand')
     self.binIt = self.projAlbers(self.clipStuff(binIt, 'bin'), 'bin')
+    self.binUnique = binUnique
     self.extra = self.processExtra(extra)
     self.mergedenergy = os.path.join(self.scratch, 'MergedEnergy')
     self.protectedMerge = os.path.join(self.scratch, 'MergedProtLands')
     self.protectedEnergy = os.path.join(self.scratch, 'protectedEnergy')
+    self.EnergySurplusDeficit = os.path.join(self.scratch, "BinnedEnergyComparison")
     env.workspace = scratch
 
   def projAlbers(self, inFeature, cat):
@@ -87,8 +91,12 @@ class Waterfowlmodel:
       print('Clipping:', inFeature)
       logging.info("Clipping features")
       arcpy.Clip_analysis(inFeature, self.aoi, outfc)
-    return outfc  
-    
+    return outfc
+
+  def getHabList(self):
+    df = pd.read_csv(self.kcalTbl)
+    return list(df['habitatType'])
+
   def processExtra(self, extra):
     """
     Process all extra energy datasets
@@ -98,14 +106,12 @@ class Waterfowlmodel:
     :return cat: Dictionary of data location as keys and cross class table as value
     :rtype cat: dict
     """
-    readyExtra = []
+    readyExtra = {}
     a=0
-    print(extra)
     for k in extra.keys():
-      extra[k] = [self.projAlbers(self.clipStuff(extra[k][0], 'extra' + str(a)), 'extra' + str(a)),extra[k][1]]
-      #readyExtra.append(self.projAlbers(self.clipStuff(extra[k][0], 'extra' + str(a)), 'extra' + str(a)))
+      readyExtra[a] = [self.projAlbers(self.clipStuff(extra[k][0], 'extra' + str(a)), 'extra' + str(a)),extra[k][1]]
       a+=1
-    return extra
+    return readyExtra
 
   def crossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
     """
@@ -210,7 +216,12 @@ class Waterfowlmodel:
     :return: Shapefile containing model results at the county level
     :rtype: str
     """
-    arcpy.Union_analysis([supply, demand], os.path.join(self.scratch, "BinnedEnergyComparison"))
+    if not arcpy.Exists(self.EnergySurplusDeficit):
+      arcpy.Union_analysis([supply, demand], self.EnergySurplusDeficit)
+      if not len(arcpy.ListFields(self.EnergySurplusDeficit,'SurpDef'))>0:
+        arcpy.AddField_management(self.EnergySurplusDeficit, 'SurpDef', "DOUBLE", 9, 2, "", "EnergySurplusDeficit")
+        arcpy.CalculateField_management(self.EnergySurplusDeficit, 'SurpDef', "!THabNrg! - !TLTADmnd!", "PYTHON3")
+    return self.EnergySurplusDeficit
 
   def bin(self, aggData, bins, cat):
     """
@@ -252,7 +263,6 @@ class Waterfowlmodel:
     :return: Spatial Sum aggregate of aggData within supplied bins
     :rtype:  str
     """
-
     # Script arguments
     Aggregation_feature = aggTo
     Data_to_aggregate = aggData
@@ -275,9 +285,6 @@ class Waterfowlmodel:
     else:
       arcpy.MakeFeatureLayer_management(aggData, outLayer, "", "", FieldsToAgg)
       arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
-    # Replace a layer/table view name with a path to a dataset (which can be a layer file) or create the layer/table view within the script
-    # The following inputs are layers or table views: "aggUnionprotectedEnergy"
-    #arcpy.Dissolve_management(in_features="aggUnionprotectedEnergy", out_feature_class="D:/OneDrive - Ducks Unlimited Incorporated/Documents/ArcGIS/Default.gdb/aggUnionprotectedEnergy_Diss", dissolve_field="HUC12", statistics_fields="avalNrgy SUM;CalcAcre SUM", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     arcpy.Dissolve_management(in_features=outLayerI, out_feature_class=aggToOut, dissolve_field=Dissolve_Field_s_, statistics_fields=AggStats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     return aggToOut    
 
@@ -285,8 +292,6 @@ class Waterfowlmodel:
     """
     Creates attribute for acres of habitat and acres of protected habitat
     """
-    # Create attribute for total habitat acres.
-    # clip merged energy with protected lands and calculate acres.  Create attribute for it.
     if not arcpy.Exists(self.protectedEnergy):
       arcpy.Clip_analysis(self.mergedenergy, self.protectedMerge, self.protectedEnergy)
       arcpy.CalculateField_management(in_table=self.protectedEnergy, field="CalcAcre", expression="!shape.area@acres!", expression_type="PYTHON_9.3", code_block="")
@@ -307,21 +312,38 @@ class Waterfowlmodel:
     """
     Calculates proportion of habitat type by bin unit.
     """
-    print(os.path.join(self.scratch, "HabitatInAOI"))
-    arcpy.RepairGeometry_management(self.mergedenergy)
-    arcpy.RepairGeometry_management(self.aoi)
     if not arcpy.Exists(os.path.join(self.scratch, "HabitatInAOI")):
-      arcpy.Union_analysis([self.mergedenergy, self.aoi], os.path.join(self.scratch, "HabitatInAOI"))
-    if not arcpy.Exists(os.path.join(os.path.dirname(self.scratch),'tbl.csv')):  
-      arcpy.TableToTable_conversion(in_rows=os.path.join(self.scratch, "HabitatInAOI"), out_path=os.path.dirname(self.scratch), out_name="tbl.csv", where_clause="", config_keyword="")
+      arcpy.RepairGeometry_management(self.mergedenergy)
+      arcpy.Union_analysis([self.mergedenergy, self.binIt], os.path.join(self.scratch, "HabitatInAOI"))
+    if not arcpy.Exists(os.path.join(os.path.dirname(self.scratch),'tbl.csv')):
+      arcpy.TableToTable_conversion(in_rows=os.path.join(self.scratch, "HabitatInAOI"), out_path=os.path.dirname(self.scratch), out_name="tbl.csv", where_clause="", field_mapping='avalNrgy "AvailableEnergy" true true false 8 Double 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',avalNrgy,-1,-1;CLASS "CLASS" true true false 255 Text 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',CLASS,-1,-1;CalcAcre "Acreage" true true false 8 Double 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',CalcAcre,-1,-1;kcal "kcal" true true false 4 Long 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',kcal,-1,-1;HUC12 "HUC12" true true false 12 Text 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',HUC12,-1,-1;Shape_Length "Shape_Length" false true true 8 Double 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',Shape_Length,-1,-1;Shape_Area "Shape_Area" false true true 8 Double 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',Shape_Area,-1,-1', config_keyword="")
     print('Converting to pandas')
-    df = pd.read_csv(os.path.join(os.path.dirname(self.scratch),'tbl.csv'))
-    df1 = df.groupby([binUnique]).CalcAcre.sum()
-    df['pct'] = df['CalcAcre']/pd.merge(df, df1, on=[binUnique,binUnique],how='left')['CalcAcre_y']*100
-    outdf = df.pivot(index=binUnique, columns='CLASS', values='CalcAcre')
-    outnp = np.array(np.rec.fromrecords(outdf.values))
+    df = pd.read_csv(os.path.join(os.path.dirname(self.scratch),'tbl.csv'), usecols=['avalNrgy','CLASS', 'CalcAcre', self.binUnique, 'kcal'], dtype={'avalNrgy': np.float, 'CLASS':np.string_,'CalcAcre':np.float, self.binUnique:np.string_})
+    df = df.dropna(subset=['CLASS', self.binUnique, 'kcal'])
+    df1 = df.groupby([self.binUnique]).CalcAcre.sum()
+    dfmerge = pd.merge(df, df1, on=[self.binUnique,self.binUnique],how='left')
+    dfmerge['pct'] = (dfmerge['CalcAcre_x']/dfmerge['CalcAcre_y'])*100
+    outdf = dfmerge.pivot_table(index=self.binUnique, columns='CLASS', values='pct')
+    outdf = outdf.fillna(0)
+    print(outdf.head())
+    # pull in kcal and calculate pct/kcal.  Once deficit is pulled in multiple by that to get acres needed
+    kcalcsv = pd.read_csv(self.kcalTbl)
+    for field in self.kcalList:
+      outdf[field] = outdf[field] / kcalcsv[kcalcsv['habitatType'] == field]['kcal'].iloc[0]
+    outdf.to_csv(os.path.join(os.path.dirname(self.scratch),'HabitatPct.csv'), index=True)
+    outdf = outdf.reset_index()
+    outdf[self.binUnique] = outdf[self.binUnique].astype(str)
+    outnp = np.array(np.rec.fromrecords(outdf))
+    print(outdf.head())
     names = outdf.dtypes.index.tolist()
     outnp.dtype.names = tuple(names)
-    print('Back to ESRI')
     arcpy.da.NumPyArrayToTable(outnp, os.path.join(self.scratch, 'HabitatPct'))
-    return os.path.join(self.scratch, 'HabitatPct')
+    for field in self.kcalList:
+      arcpy.AddField_management(os.path.join(self.scratch, 'HabitatInAOI'), field, "LONG")
+    joinedhab = arcpy.AddJoin_management(in_layer_or_view=os.path.join(self.scratch, 'HabitatInAOI'), in_field="HUC12", join_table=os.path.join(self.scratch, 'HabitatPct'), join_field="HUC12", join_type="KEEP_ALL")
+    print('Calculating sum of habitat acres by bin')
+    for field in self.kcalList:
+      arcpy.CalculateField_management(joinedhab, field, '!HabitatPct.'+field+'!', "PYTHON3")
+    return os.path.join(self.scratch,'HabitatInAOI')
+
+
