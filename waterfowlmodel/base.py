@@ -3,7 +3,7 @@ Module Waterfowl
 ================
 Defines Waterfowlmodel class which is initialized by supplying an area of interest shapfile, wetland shapefile, kilocalorie by habitat type table, and the table linking the wetland shapefile to the kcal table.
 """
-import os, sys, getopt, datetime, logging, arcpy, json, csv
+import os, sys, getopt, datetime, logging, arcpy, json, csv, re
 from arcpy import env
 import waterfowlmodel.SpatialJoinLargestOverlap as overlap
 import pandas as pd
@@ -34,12 +34,12 @@ class Waterfowlmodel:
     :type scratch: str
     """
     self.scratch = scratch
-    self.aoi = self.projAlbers(aoi, 'aoi')
-    self.wetland = self.projAlbers(self.clipStuff(wetland, 'wetland'), 'wetland')
+    self.aoi = self.projAlbers(aoi, 'AOI')
+    self.wetland = self.projAlbers(self.clipStuff(wetland, 'wetland'), 'Wetland')
     self.kcalTbl = kcalTable
     self.kcalList = self.getHabList()
     self.crossTbl = crosswalk
-    self.demand = self.projAlbers(self.clipStuff(demand, 'demand'), 'demand')
+    self.demand = self.projAlbers(self.clipStuff(demand, 'demand'), 'Demand')
     self.binIt = self.projAlbers(self.clipStuff(binIt, 'bin'), 'bin')
     self.binUnique = binUnique
     self.extra = self.processExtra(extra)
@@ -62,7 +62,7 @@ class Waterfowlmodel:
     """
     if arcpy.Describe(inFeature).SpatialReference.Name != 102003:
       print('Projecting:', inFeature)
-      outfc = os.path.join(self.scratch, cat + 'aoi')
+      outfc = os.path.join(self.scratch, cat + '_projected')
       if not (arcpy.Exists(outfc)):
         arcpy.Project_management(inFeature, outfc, arcpy.SpatialReference(102003))
         return outfc
@@ -134,6 +134,7 @@ class Waterfowlmodel:
       arcpy.AddField_management(inDataset, 'CLASS', "TEXT", 50)
     # Read data from file:
     file_extension = os.path.splitext(xTable)[-1].lower()
+    print(file_extension)
     if file_extension == ".json":
       dataDict = json.load(open(xTable))
     else:
@@ -145,12 +146,12 @@ class Waterfowlmodel:
         if row[1] is None or row[1].strip() == '':
           for key, value in dataDict.items():
             if row[0].replace(',', '') in value:
-              row[1] = key
+              row[1] = key.replace('_', '')
               cursor.updateRow(row)
         else:
           continue
 
-  def joinFeatures(self):
+  def joinEnergy(self):
     """
     Joins energy layers (Wetland with extra)
 
@@ -162,14 +163,14 @@ class Waterfowlmodel:
       print('Already joined habitat supply')
       return self.mergedenergy
     a=0
-    erased = []
-    erased.append(self.wetland)
+    erased = [self.wetland]
     for i in self.extra.keys():
       #Erase(in_features, erase_features, out_feature_class, {cluster_tolerance})
-      arcpy.Erase_analysis(self.extra[i][0], self.wetland, os.path.join(self.scratch, 'del' + str(i)))     
+      arcpy.Erase_analysis(self.extra[i][0], self.wetland, os.path.join(self.scratch, 'del' + str(i)))
       erased.append(os.path.join(self.scratch, 'del' + str(i)))
       #Union(in_features, out_feature_class, {join_attributes}, {cluster_tolerance}, {gaps})
-      arcpy.Merge_management(erased, self.mergedenergy)
+    print(erased)
+    arcpy.Merge_management(erased, self.mergedenergy)
     return self.mergedenergy
 
   def prepEnergy(self, habtype = 'ATTRIBUTE'):
@@ -272,6 +273,7 @@ class Waterfowlmodel:
     for a in aggFields:
         FieldsToAgg = FieldsToAgg + a + ' ' + a + ' VISIBLE RATIO'
         AggStats = AggStats +  a + ' ' + aggStat + ';'
+    print(AggStats)
     WFSD_BCR = aggTo
     Dissolve_Field_s_ = [dissolveFields]
     # Local variables:
@@ -323,9 +325,10 @@ class Waterfowlmodel:
     df1 = df.groupby([self.binUnique]).CalcAcre.sum()
     dfmerge = pd.merge(df, df1, on=[self.binUnique,self.binUnique],how='left')
     dfmerge['pct'] = (dfmerge['CalcAcre_x']/dfmerge['CalcAcre_y'])*100
-    outdf = dfmerge.pivot_table(index=self.binUnique, columns='CLASS', values='pct')
+    outdf = dfmerge.pivot_table(index=self.binUnique, columns='CLASS', values='pct', aggfunc=np.sum)
     outdf = outdf.fillna(0)
     print(outdf.head())
+    print(outdf.sum(axis=1))
     # pull in kcal and calculate pct/kcal.  Once deficit is pulled in multiple by that to get acres needed
     kcalcsv = pd.read_csv(self.kcalTbl)
     for field in self.kcalList:
@@ -337,9 +340,13 @@ class Waterfowlmodel:
     print(outdf.head())
     names = outdf.dtypes.index.tolist()
     outnp.dtype.names = tuple(names)
+    arcpy.env.overwriteOutput = True
+    if arcpy.Exists(os.path.join(self.scratch, 'HabitatPct')):
+      arcpy.Delete_management(os.path.join(self.scratch, 'HabitatPct'))
     arcpy.da.NumPyArrayToTable(outnp, os.path.join(self.scratch, 'HabitatPct'))
     for field in self.kcalList:
-      arcpy.AddField_management(os.path.join(self.scratch, 'HabitatInAOI'), field, "LONG")
+      if not len(arcpy.ListFields(os.path.join(self.scratch, 'HabitatInAOI'),field))>0:
+        arcpy.AddField_management(os.path.join(self.scratch, 'HabitatInAOI'), field, "DOUBLE")
     joinedhab = arcpy.AddJoin_management(in_layer_or_view=os.path.join(self.scratch, 'HabitatInAOI'), in_field="HUC12", join_table=os.path.join(self.scratch, 'HabitatPct'), join_field="HUC12", join_type="KEEP_ALL")
     print('Calculating sum of habitat acres by bin')
     for field in self.kcalList:
