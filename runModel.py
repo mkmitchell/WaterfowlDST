@@ -33,6 +33,7 @@ def main(argv):
    :type binUnique: str   
    """
    aoi = ''
+   aoiname = ''
    binUnique = ''
    wetland = ''
    kcalTable = ''
@@ -111,6 +112,7 @@ def main(argv):
       print("AOI field doesn't have the unique identifier.")
       sys.exit(2)
    aoi = os.path.join(geodatabase,args.aoi[0])
+   aoiname = args.aoi[0]
    if not (os.path.exists(os.path.join(workspace, args.aoi[0]))):
       print('Creating project folder: ', os.path.join(os.path.join(workspace, args.aoi[0])))
       os.mkdir(os.path.join(workspace, args.aoi[0]))
@@ -128,7 +130,7 @@ def main(argv):
             print("aoi layer doesn't exist.")
             sys.exit(2)
        
-   logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + args.aoi[0] + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
+   logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
    demand = waterfowlmodel.dataset.Dataset(demand, scratchgdb)
    padus = waterfowlmodel.dataset.Dataset(padus, scratchgdb)
@@ -165,7 +167,7 @@ def main(argv):
    logging.info('Bin unique: ' + binUnique)
 
    startT = time.clock()
-   dst = waterfowl.Waterfowlmodel(aoi, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, binUnique, extra, scratchgdb)
+   dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, binUnique, extra, scratchgdb)
    print(time.clock() - startT)
    print('\nAfter dst')
    print('#####################################')
@@ -178,30 +180,33 @@ def main(argv):
    print('#####################################\n')
    startT = time.clock()
    print('Wetland crossclass')
-   dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
+   #dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
    print('Marsh crossclass')
-   dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
+   #dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
    print('Impoundments crossclass')
-   dst.crossClass(dst.extra[1][0], dst.extra[1][1])
+   #dst.crossClass(dst.extra[1][0], dst.extra[1][1])
    print('Join habitats')
-   allEnergy = dst.joinEnergy()
+   #allEnergy = dst.joinEnergy()
    print('Prep Energy')
-   dst.prepEnergy()
+   #allEnergy = dst.prepEnergyFast(allEnergy, dst.kcalTbl)
+   allEnergy = dst.mergedenergy
+   print('Merge Energy')
+   dst.mergedenergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=allEnergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
    print('Bin habitat supply')
    wetbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, allEnergy, "OBJECTID", ["avalNrgy", "CalcAcre"], ["HUC12"], dst.scratch, "supplyenergy")
    if not len(arcpy.ListFields(wetbin,'THabNrg'))>0:
       arcpy.AlterField_management(wetbin, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
-   if not len(arcpy.ListFields(wetbin,'THabAcre'))>0:      
+   if not len(arcpy.ListFields(wetbin,'THabAcre'))>0:
       arcpy.AlterField_management(wetbin, 'SUM_CalcAcre', 'THabAcre', 'TotalHabitatAcre')
-   mergebin.append(wetbin)
+   #mergebin.append(wetbin)
    print('Bin Demand')
+   dst.demand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All' AND CODE = '4B'")
    demandbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.demand, "OBJECTID", ["LTADUD", "LTADemand"], ["HUC12"], dst.scratch, "energydemand")
-   print(demandbin)
    if not len(arcpy.ListFields(demandbin,'TLTADUD'))>0:
       arcpy.AlterField_management(demandbin, 'SUM_LTADUD', 'TLTADUD', 'TotalLTADUD')
    if not len(arcpy.ListFields(demandbin,'TLTADmnd'))>0:
       arcpy.AlterField_management(demandbin, 'SUM_LTADemand', 'TLTADmnd', 'TotalLTADemand')
-   mergebin.append(demandbin)
+   #mergebin.append(demandbin)
    print("Combine supply and demand")
    mergebin.append(dst.unionEnergy(wetbin, demandbin))
    print('Public lands prep')
@@ -228,42 +233,7 @@ def main(argv):
    mergebin.append(habpct)
    print('Merge it all')
    print(mergebin)
-   if not arcpy.Exists(os.path.join(scratchgdb, 'AllDataBintemp')):
-      arcpy.Merge_management(mergebin, os.path.join(scratchgdb, 'AllDataBintemp'))
-   """
-   supplyenergy
-	Total habitat energy within huc - THabNrg
-	Total habitat acres within huc - THabAcre
-
-   energydemand
-      LTA DUD by huc - TLTADUD
-      LTA Demand by huc - TLTADmnd
-      
-   protected
-      Total protected acres by huc - ProtAcre
-
-   Protected habitat acres and energy
-      total protected acres - ProtHabAc
-      Total protectedf energy - ProtHabNrg
-	"""
-   print('Dissolving features and fixing fields')
-   if not arcpy.Exists(os.path.join(scratchgdb, 'AllDataBin')):
-      fields = "THabNrg SUM;THabAcre SUM;TLTADUD SUM;TLTADmnd SUM;ProtAcre SUM;ProtHabAc SUM;ProtHabNrg SUM;SurpDef SUM;"
-      for field in dst.kcalList:
-         fields+= field + " SUM;"
-      print(fields)
-      arcpy.Dissolve_management(in_features=os.path.join(scratchgdb, 'AllDataBintemp'), out_feature_class=os.path.join(scratchgdb, 'AllDataBin'), dissolve_field="HUC12", statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
-      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_THabNrg', 'THabNrg', 'Habitat Energy (kcal)')
-      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_THabAcre', 'THabAcre', 'Habitat Acres')
-      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_TLTADUD', 'TLTADUD', 'Long Term Average Duck Use Days')
-      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_TLTADmnd', 'TLTADmnd', 'Long Term Average Energy Demand (kcal)')
-      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_ProtAcre', 'ProtAcre', 'Protected Acres')
-      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_ProtHabAc', 'ProtHabAc', 'Protected Habitat Acres')
-      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_ProtHabNrg', 'ProtHabNrg', 'Protected Habitat Energy (kcal)')
-      arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_SurpDef', 'SurpDef', 'Energy Surplus or Deficit (kcal)')
-      for field in dst.kcalList:
-         arcpy.AlterField_management(os.path.join(scratchgdb, 'AllDataBin'), 'SUM_'+field, field, field)
-         arcpy.CalculateField_management(in_table=os.path.join(scratchgdb, 'AllDataBin'), field=field, expression="abs( !SurpDef!) * !"+field+"! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
+   dst.dstOutout(mergebin, ['HUC12'])
    print(time.clock() - startT)
    print('\n Complete')
    print('#####################################\n')
