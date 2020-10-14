@@ -1,7 +1,7 @@
 """
 Module Waterfowl
 ================
-Defines Waterfowlmodel class which is initialized by supplying an area of interest shapfile, wetland shapefile, kilocalorie by habitat type table, and the table linking the wetland shapefile to the kcal table.
+Defines Waterfowlmodel class which is used for storing parameters and doing calculations for the waterfowl decision support tool.
 """
 import os, sys, getopt, datetime, logging, arcpy, json, csv, re
 from arcpy import env
@@ -12,15 +12,15 @@ from arcgis.features import FeatureLayer, GeoAccessor
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
-  def __init__(self, aoi, aoiname, wetland, kcalTable, crosswalk, demand, binIt, binUnique, extra, scratch, debug=False):
+  def __init__(self, aoi, aoiname, wetland, kcalTable, crosswalk, demand, binIt, binUnique, extra, scratch):
     """
     Creates a waterfowl model object.
     
-    :param aoi: Area of interest shapefile
+    :param aoi: Area of interest
     :type aoi: str
     :param aoiname: Name of AOI
     :type aoiname: str    
-    :param wetland: National Wetlands Inventory shapefile
+    :param wetland: National Wetlands Inventory
     :type wetland: str
     :param kcalTable: CSV file containing two columns [habitat type, kilocalorie value by hectares]
     :type kcalTable: str
@@ -31,9 +31,11 @@ class Waterfowlmodel:
     :param binIt: Aggregation feature
     :type binIt: str
     :param binUnique: Unique field of aggregation feature
-    :type binUnique: str        
+    :type binUnique: str
+    :param extra: List of extra datasets and their corresponding crossover table
+    :type extra: str    
     :param scratch: Scratch geodatabase location
-    :type scratch: str
+    :type scratch: str   
     """
     self.scratch = scratch
     self.aoi = self.projAlbers(aoi, 'AOI')
@@ -58,7 +60,7 @@ class Waterfowlmodel:
 
     :param inFeature: Feature to project to Albers
     :type inFeature: str
-    :param cat: Feature category
+    :param cat: Feature category name
     :type cat: str
     :return outfc: Location of projected feature
     :rtype outfc: str    
@@ -82,7 +84,7 @@ class Waterfowlmodel:
 
     :param inFeature: Feature to clip to AOI
     :type inFeature: str
-    :param cat: Feature category
+    :param cat: Feature category name
     :type cat: str
     :return outfc: Location of clipped feature
     :rtype outfc: str
@@ -98,6 +100,12 @@ class Waterfowlmodel:
     return outfc
 
   def getHabList(self):
+    """
+    Reads the input kcal table and returns a list of habitat types.
+
+    :return list: List of habitat types
+    :rtype list: list
+    """    
     df = pd.read_csv(self.kcalTbl)
     return list(df['habitatType'])
 
@@ -107,8 +115,8 @@ class Waterfowlmodel:
 
     :param extra: Feature to project to Albers
     :type extra: list
-    :return cat: Dictionary of data location as keys and cross class table as value
-    :rtype cat: dict
+    :return readyExtra: Dictionary of data location as keys and cross class table as value
+    :rtype readyExtra: dict
     """
     readyExtra = {}
     a=0
@@ -153,6 +161,12 @@ class Waterfowlmodel:
     """
     Joins energy layers (Wetland with extra)
 
+    :param mergedenergy: Output dataset that's defined by this object
+    :type mergedenergy: str
+    :param wetland: location of wetland dataset defined by this object
+    :type wetland: str
+    :param extra: Location of the extra habitat supply datasets defined by this object
+    :type extra: str    
     :return: Merged feature location
     :rtype: str
     """    
@@ -222,6 +236,10 @@ class Waterfowlmodel:
     """
     Runs energy difference between NAWCA stepdown objectives and available habitat.
 
+    :param mergebin: List that holds all datasets to be merged for output
+    :type mergebin: list
+    :param dissolveFields: Unique field that all features are joined by
+    :type dissolveFields: str    
     :return: Shapefile containing model results at the county level
     :rtype: str
     """
@@ -230,20 +248,26 @@ class Waterfowlmodel:
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBintemp'))
     arcpy.Merge_management(mergebin, os.path.join(self.scratch, 'AllDataBintemp'))
     """
-    supplyenergy
+    Energy supply
     Total habitat energy within huc - THabNrg
     Total habitat hectares within huc - THabHA
 
-    energydemand
+    Energy demand
         LTA DUD by huc - TLTADUD
         LTA Demand by huc - TLTADmnd
         
-    protected
+    Protected lands
         Total protected hectares by huc - ProtHA
 
     Protected habitat hectares and energy
-        total protected hectares - ProtHabHA
+        Total protected hectares - ProtHabHA
         Total protectedf energy - ProtHabNrg
+
+    Weighted mean and calculations based off of it
+        Weighted mean kcal/ha with weight being Total habitat energy
+        Energy Protection needed - NrgProtRq
+        Restoration HA based off of weighted mean - RstorHA
+        Protection HA based off weighted mean - RstorProtHA  
     """
     print('Dissolving features and fixing fields')
     fields = "THabNrg SUM;THabHA SUM;TLTADUD SUM;TLTADmnd SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;SurpDef SUM;wtMeankcal MEAN;"
@@ -264,11 +288,11 @@ class Waterfowlmodel:
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_SurpDef', 'SurpDef', 'Energy Surplus or Deficit (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MEAN_wtMeankcal', 'wtMeankcal', 'Weighted mean (kcal)')
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'NrgProtRq', "DOUBLE", 9, 2, "", "Energy Protection Needed")
-    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='NrgProtRq', expression="!ProtHabNrg! - !THabNrg! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='NrgProtRq', expression="!THabNrg! - !ProtHabNrg! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'RstorHA', "DOUBLE", 9, 2, "", "Restoration HA based off weighted mean")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='RstorHA', expression="abs(!SurpDef!/!wtMeankcal!) if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'RstorProtHA', "DOUBLE", 9, 2, "", "Protection HA based off weighted mean")
-    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='RstorProtHA', expression="abs(!NrgProtRq!/!wtMeankcal!) if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")    
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='RstorProtHA', expression="(!NrgProtRq!/!wtMeankcal!) if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")    
     for field in self.kcalList:
       arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_'+field, field, field)
       arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field=field, expression="abs(!SurpDef!) * !"+field+"! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
@@ -276,8 +300,12 @@ class Waterfowlmodel:
 
   def unionEnergy(self, supply, demand):
     """
-    Merges all energy features into one feature.
+    Merges supply and demand energy features into one feature to calculate energy surplus or deficit.
 
+    :param supply: Energy supply dataset
+    :type supply: str
+    :param demand: Energy demand dataset
+    :type demand: str    
     :return: Shapefile containing model results at the county level
     :rtype: str
     """
@@ -378,6 +406,9 @@ class Waterfowlmodel:
     arcpy.CalculateGeometryAttributes_management(self.protectedMerge, "CalcHA AREA", area_unit="HECTARES")      
     
   def prepnpTables(self):
+    """
+    Reads in merged energy dataset, repairs it, then exports a csv file for use in habitat proportion calculations.
+    """    
     arcpy.FeatureClassToFeatureClass_conversion(in_features=self.mergedenergy, out_path=os.path.join(self.scratch), out_name="testMerged", where_clause="CLASS IS NOT NULL")
     if arcpy.Exists(os.path.join(self.scratch, "HabitatInAOI")):
       arcpy.Delete_management(os.path.join(self.scratch, 'HabitatInAOI'))
@@ -437,7 +468,7 @@ class Waterfowlmodel:
 
   def weightedMean(self):
     """
-    Calculates weighted average of kcal/ha.
+    Calculates weighted average of kcal/ha weight available energy as the weight.
     """
     print('Calculating  weighted average')
     df = pd.read_csv(os.path.join(os.path.dirname(self.scratch),'tbl.csv'), usecols=['avalNrgy','CLASS', 'CalcHA', self.binUnique, 'kcal'], dtype={'avalNrgy': np.float, 'CLASS':np.string_,'CalcHA':np.float, self.binUnique:np.string_})
