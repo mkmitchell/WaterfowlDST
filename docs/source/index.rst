@@ -15,6 +15,7 @@ Welcome to ABDU DST's documentation!
    dataset
    publicland
    mergeNWIDict
+   zipUp
 
 Indices and tables
 ==================
