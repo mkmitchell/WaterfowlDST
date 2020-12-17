@@ -177,10 +177,9 @@ def main(argv):
    print('\nWaterfowl object data')
    print('#####################################')
    printlog('Wetland layer', ' '.join(map(str, list(dst.__dict__))))
-   print('#####################################\n')
    startT = time.clock()
    if debug[0]: #Energy supply
-      print('#### ENERGY SUPPLY ####')
+      print('\n#### ENERGY SUPPLY ####')
       print('Wetland crossclass')
       dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
       print('Marsh crossclass')
@@ -203,8 +202,8 @@ def main(argv):
       wetbin = os.path.join(dst.scratch, 'aggtosupplyenergy')
 
    if debug[1]: #Energy demand
-      print('#### ENERGY DEMAND ####')
-      dst.demand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All' AND CODE = '4B'")
+      print('\n#### ENERGY DEMAND ####')
+      dst.demand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
       demandbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.demand, "OBJECTID", ["LTADUD", "LTADemand"], [dst.binUnique], dst.scratch, "energydemand")
       if not len(arcpy.ListFields(demandbin,'TLTADUD'))>0:
          arcpy.AlterField_management(demandbin, 'SUM_LTADUD', 'TLTADUD', 'TotalLTADUD')
@@ -214,14 +213,14 @@ def main(argv):
       demandbin = os.path.join(dst.scratch, 'aggtoenergydemand')
 
    if debug[2]: #Public lands
-      print('#### PUBLIC LANDS ####')
+      print('\n#### PUBLIC LANDS ####')
       nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
       padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
       print('Public lands ready. Analyzing')
       dst.prepProtected(nced.land, padus.land)
       protectedbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "protectedbin")
       if not len(arcpy.ListFields(protectedbin,'ProtHA'))>0:
-         if len(arcpy.ListFields(dst.protectedbin,'SUM_CalcHA'))>0:
+         if len(arcpy.ListFields(protectedbin,'SUM_CalcHA'))>0:
             arcpy.AlterField_management(protectedbin, 'SUM_CalcHA', 'ProtHA', 'ProtectedHectares')
          else:
             arcpy.AlterField_management(protectedbin, 'CalcHA', 'ProtHA', 'ProtectedHectares')
@@ -242,10 +241,10 @@ def main(argv):
       dst.protectedEnergy = (os.path.join(dst.scratch, 'aggtoprotectedEnergy'))
    
    if debug[3]: #Habitat percentage
-      print('#### HABITAT PERCENTAGE ####')
+      print('\n#### HABITAT PERCENTAGE ####')
       dst.prepnpTables()
       habpct = dst.pctHabitatType()
-      print('#### HABITAT WEIGHTED MEAN ####')
+      print('\n#### HABITAT WEIGHTED MEAN ####')
       habpct = dst.weightedMean()
    else:
       habpct = os.path.join(dst.scratch,'HabitatInAOI')
