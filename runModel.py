@@ -39,7 +39,7 @@ def main(argv):
    :type binUnique: str   
    :param aoi: Area of interest shapefile
    :type aoi: str
-   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified.
+   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, protected lands, habitat proportion]
    :type debug: str   
    """
    aoi = ''

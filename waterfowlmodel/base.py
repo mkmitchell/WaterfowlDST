@@ -56,11 +56,11 @@ class Waterfowlmodel:
 
   def projAlbers(self, inFeature, cat):
     """
-    Projects data to Albers
+    Projects in features to Albers Equal Area (WKSID 102003)
 
     :param inFeature: Feature to project to Albers
     :type inFeature: str
-    :param cat: Feature category name
+    :param cat: Category name used for unique storage
     :type cat: str
     :return outfc: Location of projected feature
     :rtype outfc: str    
@@ -80,14 +80,16 @@ class Waterfowlmodel:
 
   def selectBins(self, aoi, bins):
     """
-    Selects bins that touch the AOI
+    Selects bins that intersect the AOI.  Incorporated to remove edge effect error.
 
-    :param inFeature: Feature to project to Albers
+    :param inFeature: Features used as the area of interst to select intersecting bin features.  Feature AOI name
     :type inFeature: str
-    :param cat: Feature AOI name
+    :param cat: Category name used for unique storage
     :type cat: str
     :param bins: Feature bin name
-    :type bins: str    
+    :type bins: str
+    :return outfc: Location of selected bins feature dataset
+    :rtype outfc: str
     """
     print('Selecting bins')
     slt = arcpy.SelectLayerByLocation_management(bins, "intersect", aoi)
@@ -97,13 +99,13 @@ class Waterfowlmodel:
 
   def clipStuff(self, inFeature, cat):
     """
-    Clips wetland to the area of interest.
+    Clips input feature to the area of interest.
 
-    :param inFeature: Feature to clip to AOI
+    :param inFeature: Feature dataset to clip to AOI
     :type inFeature: str
-    :param cat: Feature category name
+    :param cat: Category name used for unique storage
     :type cat: str
-    :return outfc: Location of clipped feature
+    :return outfc: Location of clipped feature dataset
     :rtype outfc: str
     """
     outfc = os.path.join(self.scratch, cat + 'clip')
@@ -124,7 +126,7 @@ class Waterfowlmodel:
 
   def getHabList(self):
     """
-    Reads the input kcal table and returns a list of habitat types.
+    Reads the objects input kcal table and returns a list of habitat types.
 
     :return list: List of habitat types
     :rtype list: list
@@ -134,7 +136,7 @@ class Waterfowlmodel:
 
   def processExtra(self, extra):
     """
-    Process all extra energy datasets
+    Process all extra energy datasets and returns a Dictionary.
 
     :param extra: Feature to project to Albers
     :type extra: list
@@ -150,11 +152,11 @@ class Waterfowlmodel:
 
   def crossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
     """
-    Joining large datasets is way too slow and may crash.  Iterating with a check for null will make sure all data is filled.
+    Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.
 
     :param inDataset: Feature to be updated with a new 'CLASS' field
     :type inDataset: str
-    :param xTable: Location of csv or json file with two columns, from class and to class
+    :param xTable: Location of csv or json file with two columns, original class and the class it's changing to
     :type xTable: str
     :param curclass: Field that lists current class within inDataset
     :type curclass: str.
@@ -196,14 +198,12 @@ class Waterfowlmodel:
     """
     Joins energy layers (Wetland with extra)
 
-    :param mergedenergy: Output dataset that's defined by this object
-    :type mergedenergy: str
-    :param wetland: location of wetland dataset defined by this object
+    :param wetland: location of wetland dataset
     :type wetland: str
-    :param extra: Location of the extra habitat supply datasets defined by this object
+    :param extra: Location of the extra habitat supply datasets
     :type extra: str    
-    :return: Merged feature location
-    :rtype: str
+    :return mergedenergy: Merged feature location
+    :rtype mergedenergy: str
     """    
     #Delete Wetland area from each extra dataset
     if arcpy.Exists(mergedenergy):
@@ -219,9 +219,9 @@ class Waterfowlmodel:
 
   def prepEnergyFast(self, inDataset, xTable):
     """
-    Joining large datasets is way too slow and may crash.  Iterating with a check for null will make sure all data is filled.
+    Calculates habitat area and energy of the input dataset
 
-    :param inDataset: Feature to be updated with a new 'CLASS' field
+    :param inDataset: Feature to be updated with kcal values that relate to the class
     :type inDataset: str
     :param xTable: Location of csv or json file with two columns, from class and to class
     :type xTable: str
@@ -356,7 +356,7 @@ class Waterfowlmodel:
 
   def bin(self, aggData, bins, cat):
     """
-    Aggregate sum based on maximum area overlap.
+    **DEPRECATED AND NOT USED. Aggregate sum based on maximum area overlap.
 
     :param aggData: Dataset that contains information to be aggregated spatially
     :type aggData: str
@@ -440,6 +440,11 @@ class Waterfowlmodel:
   def prepProtected(self, nced, padus):
     """
     Prepares protected lands by merging nced and padus by deleting NCED from PAD and running a union.
+
+    :param nced: NCED feature class
+    :type nced: str
+    :param padus: PADUS feature class
+    :type padus: str
     """
     if not arcpy.Exists(os.path.join(self.scratch, 'delncedfrompad')):
       arcpy.Erase_analysis(padus, nced, os.path.join(self.scratch, 'delncedfrompad'))
@@ -466,7 +471,7 @@ class Waterfowlmodel:
 
   def pctHabitatType(self):
     """
-    Calculates proportion of habitat type by bin unit.
+    Calculates proportion of habitat type by bin feature.
     """
     print('Converting to pandas')
     df = pd.read_csv(os.path.join(os.path.dirname(self.scratch),'tbl.csv'), usecols=['avalNrgy','CLASS', 'CalcHA', self.binUnique, 'kcal'], dtype={'avalNrgy': np.float, 'CLASS':np.string_,'CalcHA':np.float, self.binUnique:np.string_})
