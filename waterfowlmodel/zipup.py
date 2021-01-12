@@ -52,7 +52,7 @@ def zipUp(base = r'C:\Users\jskillman\Ducks Unlimited Incorporated\GIS Departmen
     :param base: The path to the base folder in which all output db are held. 
     :type table: str
     :param fldr: The folder that contains the geodatabase to zip up. Will zip up all items in that folder, so make sure only the gdb is there.
-    : type fldr: str
+    :type fldr: str
     """
     
     # make new output folder in the GIS output folder
