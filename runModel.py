@@ -39,7 +39,7 @@ def main(argv):
    :type binUnique: str   
    :param aoi: Area of interest shapefile
    :type aoi: str
-   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified.
+   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, protected lands, habitat proportion]
    :type debug: str   
    """
    aoi = ''
@@ -177,10 +177,9 @@ def main(argv):
    print('\nWaterfowl object data')
    print('#####################################')
    printlog('Wetland layer', ' '.join(map(str, list(dst.__dict__))))
-   print('#####################################\n')
    startT = time.clock()
    if debug[0]: #Energy supply
-      print('#### ENERGY SUPPLY ####')
+      print('\n#### ENERGY SUPPLY ####')
       print('Wetland crossclass')
       dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
       print('Marsh crossclass')
@@ -194,7 +193,7 @@ def main(argv):
       allEnergy = dst.mergedenergy
       print('Merge supply Energy')
       dst.mergedenergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=allEnergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
-      wetbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, allEnergy, "OBJECTID", ["avalNrgy", "CalcHA"], [dst.binUnique], dst.scratch, "supplyenergy")
+      wetbin = dst.aggproportion(dst.binIt, allEnergy, "OBJECTID", ["avalNrgy", "CalcHA"], [dst.binUnique], dst.scratch, "supplyenergy")
       if not len(arcpy.ListFields(wetbin,'THabNrg'))>0:
          arcpy.AlterField_management(wetbin, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
       if not len(arcpy.ListFields(wetbin,'THabHA'))>0:
@@ -203,31 +202,30 @@ def main(argv):
       wetbin = os.path.join(dst.scratch, 'aggtosupplyenergy')
 
    if debug[1]: #Energy demand
-      print('#### ENERGY DEMAND ####')
-      dst.demand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All' AND CODE = '4B'")
-      demandbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.demand, "OBJECTID", ["LTADUD", "LTADemand"], [dst.binUnique], dst.scratch, "energydemand")
-      if not len(arcpy.ListFields(demandbin,'TLTADUD'))>0:
-         arcpy.AlterField_management(demandbin, 'SUM_LTADUD', 'TLTADUD', 'TotalLTADUD')
-      if not len(arcpy.ListFields(demandbin,'TLTADmnd'))>0:
-         arcpy.AlterField_management(demandbin, 'SUM_LTADemand', 'TLTADmnd', 'TotalLTADemand')
+      print('\n#### ENERGY DEMAND ####')
+      selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
+      arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
+      dst.demand = os.path.join(dst.scratch, 'EnergyDemandSelected')
+      mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
+      demandbin = dst.aggByField(mergedAll, dst.scratch, 'energydemand')
    else:
-      demandbin = os.path.join(dst.scratch, 'aggtoenergydemand')
+      demandbin = os.path.join(dst.scratch, 'aggByFieldenergydemand')
 
    if debug[2]: #Public lands
-      print('#### PUBLIC LANDS ####')
+      print('\n#### PUBLIC LANDS ####')
       nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
       padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
       print('Public lands ready. Analyzing')
       dst.prepProtected(nced.land, padus.land)
-      protectedbin = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "protectedbin")
+      protectedbin = dst.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "protectedbin")
       if not len(arcpy.ListFields(protectedbin,'ProtHA'))>0:
-         if len(arcpy.ListFields(dst.protectedbin,'SUM_CalcHA'))>0:
+         if len(arcpy.ListFields(protectedbin,'SUM_CalcHA'))>0:
             arcpy.AlterField_management(protectedbin, 'SUM_CalcHA', 'ProtHA', 'ProtectedHectares')
          else:
             arcpy.AlterField_management(protectedbin, 'CalcHA', 'ProtHA', 'ProtectedHectares')
       print('Calculate and bin protected habitat energy and hectares')
       dst.calcProtected()
-      dst.protectedEnergy = waterfowlmodel.base.Waterfowlmodel.aggproportion(dst.binIt, dst.protectedEnergy, "OBJECTID", ["CalcHA", "avalNrgy"], [dst.binUnique], dst.scratch, "protectedEnergy")
+      dst.protectedEnergy = dst.aggproportion(dst.binIt, dst.protectedEnergy, "OBJECTID", ["CalcHA", "avalNrgy"], [dst.binUnique], dst.scratch, "protectedEnergy")
       if not len(arcpy.ListFields(dst.protectedEnergy,'ProtHabHA'))>0:
          if len(arcpy.ListFields(dst.protectedEnergy,'SUM_CalcHA'))>0:
             arcpy.AlterField_management(dst.protectedEnergy, 'SUM_CalcHA', 'ProtHabHA', 'ProtectedHabitatHectares')
@@ -242,13 +240,14 @@ def main(argv):
       dst.protectedEnergy = (os.path.join(dst.scratch, 'aggtoprotectedEnergy'))
    
    if debug[3]: #Habitat percentage
-      print('#### HABITAT PERCENTAGE ####')
-      dst.prepnpTables()
+      print('\n#### HABITAT PERCENTAGE ####')
+      if not debug[1]:
+         mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
       habpct = dst.pctHabitatType()
-      print('#### HABITAT WEIGHTED MEAN ####')
+      print('\n#### HABITAT WEIGHTED MEAN ####')
       habpct = dst.weightedMean()
    else:
-      habpct = os.path.join(dst.scratch,'HabitatInAOI')
+      habpct = os.path.join(dst.scratch,'aggByFieldenergydemand')
 
    print('\n#### Merging all the data for output ####')
    mergebin.append(dst.unionEnergy(wetbin, demandbin)) #Energy supply and demand

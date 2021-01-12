@@ -40,13 +40,13 @@ class Waterfowlmodel:
     self.scratch = scratch
     self.aoi = self.projAlbers(aoi, 'AOI')
     self.aoiname = aoiname
+    self.binIt = self.selectBins(self.aoi, self.projAlbers(binIt, 'bin'))
+    self.binUnique = binUnique
     self.wetland = self.projAlbers(self.clipStuff(wetland, 'wetland'), 'Wetland')
     self.kcalTbl = kcalTable
     self.kcalList = self.getHabList()
     self.crossTbl = crosswalk
     self.demand = self.projAlbers(self.clipStuff(demand, 'demand'), 'Demand')
-    self.binIt = self.projAlbers(self.clipStuff(binIt, 'bin'), 'bin')
-    self.binUnique = binUnique
     self.extra = self.processExtra(extra)
     self.mergedenergy = os.path.join(self.scratch, 'MergedEnergy')
     self.protectedMerge = os.path.join(self.scratch, 'MergedProtLands')
@@ -56,11 +56,11 @@ class Waterfowlmodel:
 
   def projAlbers(self, inFeature, cat):
     """
-    Projects data to Albers
+    Projects in features to Albers Equal Area (WKSID 102003)
 
     :param inFeature: Feature to project to Albers
     :type inFeature: str
-    :param cat: Feature category name
+    :param cat: Category name used for unique storage
     :type cat: str
     :return outfc: Location of projected feature
     :rtype outfc: str    
@@ -68,25 +68,44 @@ class Waterfowlmodel:
     if arcpy.Describe(inFeature).SpatialReference.Name != 102003:
       outfc = os.path.join(self.scratch, cat + '_projected')
       if not (arcpy.Exists(outfc)):
-        print('Projecting:', inFeature)
+        print('Projecting {}'.format(cat + ' layer: ' + inFeature + ' to ' + outfc))
         arcpy.Project_management(inFeature, outfc, arcpy.SpatialReference(102003))
         return outfc
       else:
-        print('Already projected:', inFeature)
+        print('Already projected to', outfc)
         return outfc        
     else:
       print('Spatial reference good')
       return inFeature
 
+  def selectBins(self, aoi, bins):
+    """
+    Selects bins that intersect the AOI.  Incorporated to remove edge effect error.
+
+    :param inFeature: Features used as the area of interst to select intersecting bin features.  Feature AOI name
+    :type inFeature: str
+    :param cat: Category name used for unique storage
+    :type cat: str
+    :param bins: Feature bin name
+    :type bins: str
+    :return outfc: Location of selected bins feature dataset
+    :rtype outfc: str
+    """
+    print('Selecting bins')
+    slt = arcpy.SelectLayerByLocation_management(bins, "intersect", aoi)
+    arcpy.CopyFeatures_management(slt ,os.path.join(self.scratch, 'selectedBin'))
+    self.aoi = os.path.join(self.scratch, 'selectedBin')
+    return os.path.join(self.scratch, 'selectedBin')
+
   def clipStuff(self, inFeature, cat):
     """
-    Clips wetland to the area of interest.
+    Clips input feature to the area of interest.
 
-    :param inFeature: Feature to clip to AOI
+    :param inFeature: Feature dataset to clip to AOI
     :type inFeature: str
-    :param cat: Feature category name
+    :param cat: Category name used for unique storage
     :type cat: str
-    :return outfc: Location of clipped feature
+    :return outfc: Location of clipped feature dataset
     :rtype outfc: str
     """
     outfc = os.path.join(self.scratch, cat + 'clip')
@@ -94,14 +113,20 @@ class Waterfowlmodel:
       print('Already have {} clipped with aoi'.format(cat))
       logging.info('Already have {} clipped with aoi'.format(cat))
     else:
-      print('Clipping:', inFeature)
+      print('Clipping {}'.format(cat + ' layer: ' + inFeature + ' to ' + outfc))
       logging.info("Clipping features")
+      if cat == 'demand':
+        print('Demand feature layer')
+        arcpy.MakeFeatureLayer_management(in_features=inFeature, out_layer=outfc + 'tLayer', where_clause="", workspace="", field_info="OBJECTID OBJECTID VISIBLE NONE;Shape Shape VISIBLE NONE;SQMI SQMI VISIBLE NONE;ACRE ACRE VISIBLE NONE;ICP ICP VISIBLE NONE;LCP LCP VISIBLE NONE;BCR BCR VISIBLE NONE;JV JV VISIBLE NONE;species species VISIBLE NONE;fips fips VISIBLE NONE;CODE CODE VISIBLE NONE;LTADUD LTADUD VISIBLE RATIO;X80DUD X80DUD VISIBLE RATIO;LTAPopObj LTAPopObj VISIBLE RATIO;X80PopObj X80PopObj VISIBLE RATIO;LTADemand LTADemand VISIBLE RATIO;X80Demand X80Demand VISIBLE RATIO;REGION REGION VISIBLE NONE;Shape_Leng Shape_Leng VISIBLE NONE;Shape_Length Shape_Length VISIBLE NONE;Shape_Area Shape_Area VISIBLE NONE")
+        inFeature = outfc + 'tLayer'
+      # Replace a layer/table view name with a path to a dataset (which can be a layer file) or create the layer/table view within the script
+      # The following inputs are layers or table views: "EnergyDemand"
       arcpy.Clip_analysis(inFeature, self.aoi, outfc)
     return outfc
 
   def getHabList(self):
     """
-    Reads the input kcal table and returns a list of habitat types.
+    Reads the objects input kcal table and returns a list of habitat types.
 
     :return list: List of habitat types
     :rtype list: list
@@ -111,7 +136,7 @@ class Waterfowlmodel:
 
   def processExtra(self, extra):
     """
-    Process all extra energy datasets
+    Process all extra energy datasets and returns a Dictionary.
 
     :param extra: Feature to project to Albers
     :type extra: list
@@ -127,17 +152,22 @@ class Waterfowlmodel:
 
   def crossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
     """
-    Joining large datasets is way too slow and may crash.  Iterating with a check for null will make sure all data is filled.
+    Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.
 
     :param inDataset: Feature to be updated with a new 'CLASS' field
     :type inDataset: str
-    :param xTable: Location of csv or json file with two columns, from class and to class
+    :param xTable: Location of csv or json file with two columns, original class and the class it's changing to
     :type xTable: str
     :param curclass: Field that lists current class within inDataset
     :type curclass: str.
     """
     logging.info("Calculating habitat")
-    if not len(arcpy.ListFields(inDataset,'CLASS'))>0:
+    if len(arcpy.ListFields(inDataset,'CLASS'))>0:
+      for field in arcpy.ListFields(inDataset):
+        if field.name == 'CLASS' and not field.type == 'String':
+          arcpy.DeleteField_management(inDataset, 'CLASS')
+          arcpy.AddField_management(inDataset, 'CLASS', "TEXT", 50)
+    else:
       arcpy.AddField_management(inDataset, 'CLASS', "TEXT", 50)
     # Read data from file:
     file_extension = os.path.splitext(xTable)[-1].lower()
@@ -153,7 +183,14 @@ class Waterfowlmodel:
           for key, value in dataDict.items():
             if row[0].replace(',', '') in value:
               row[1] = key.replace('_', '')
-              cursor.updateRow(row)
+              try:
+                cursor.updateRow(row)
+              except Exception as e:
+                print(e)
+                print(row[0])
+                print(row[1])
+                print(type(row[1]))
+                sys.exit()
         else:
           continue
 
@@ -161,14 +198,12 @@ class Waterfowlmodel:
     """
     Joins energy layers (Wetland with extra)
 
-    :param mergedenergy: Output dataset that's defined by this object
-    :type mergedenergy: str
-    :param wetland: location of wetland dataset defined by this object
+    :param wetland: location of wetland dataset
     :type wetland: str
-    :param extra: Location of the extra habitat supply datasets defined by this object
+    :param extra: Location of the extra habitat supply datasets
     :type extra: str    
-    :return: Merged feature location
-    :rtype: str
+    :return mergedenergy: Merged feature location
+    :rtype mergedenergy: str
     """    
     #Delete Wetland area from each extra dataset
     if arcpy.Exists(mergedenergy):
@@ -184,9 +219,9 @@ class Waterfowlmodel:
 
   def prepEnergyFast(self, inDataset, xTable):
     """
-    Joining large datasets is way too slow and may crash.  Iterating with a check for null will make sure all data is filled.
+    Calculates habitat area and energy of the input dataset
 
-    :param inDataset: Feature to be updated with a new 'CLASS' field
+    :param inDataset: Feature to be updated with kcal values that relate to the class
     :type inDataset: str
     :param xTable: Location of csv or json file with two columns, from class and to class
     :type xTable: str
@@ -201,7 +236,7 @@ class Waterfowlmodel:
       arcpy.AddField_management(inDataset, 'kcal', "LONG")
     if not len(arcpy.ListFields(inDataset,'CalcHA'))>0:
       arcpy.AddField_management(inDataset, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
-    #arcpy.CalculateGeometryAttributes_management(inDataset, "CalcHA AREA", area_unit="HECTARES")      
+    arcpy.CalculateGeometryAttributes_management(inDataset, "CalcHA AREA", area_unit="HECTARES")      
     # Read data from file:
     print('Reading in habitat file')
     file_extension = os.path.splitext(xTable)[-1].lower()
@@ -261,7 +296,7 @@ class Waterfowlmodel:
 
     Protected habitat hectares and energy
         Total protected hectares - ProtHabHA
-        Total protectedf energy - ProtHabNrg
+        Total protected energy - ProtHabNrg
 
     Weighted mean and calculations based off of it
         Weighted mean kcal/ha with weight being Total habitat energy
@@ -271,8 +306,8 @@ class Waterfowlmodel:
     """
     print('Dissolving features and fixing fields')
     fields = "THabNrg SUM;THabHA SUM;TLTADUD SUM;TLTADmnd SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;SurpDef SUM;wtMeankcal MEAN;"
-    for field in self.kcalList:
-      fields+= field + " SUM;"
+    #for field in self.kcalList:
+      #fields+= field + " MEAN;"
     print(dissolveFields)
     if arcpy.Exists(os.path.join(self.scratch, 'AllDataBin')):
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBin'))
@@ -287,15 +322,15 @@ class Waterfowlmodel:
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_ProtHabNrg', 'ProtHabNrg', 'Protected Habitat Energy (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_SurpDef', 'SurpDef', 'Energy Surplus or Deficit (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MEAN_wtMeankcal', 'wtMeankcal', 'Weighted mean (kcal)')
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'NrgProtRq', "DOUBLE", 9, 2, "", "Energy Protection Needed")
-    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='NrgProtRq', expression="!THabNrg! - !ProtHabNrg! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'RstorHA', "DOUBLE", 9, 2, "", "Restoration HA based off weighted mean")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'NrgProtRq', "DOUBLE", 9, 2, "", "Energy Protection Needed (Habitat Energy demand - protected habitat energy) (kcal)")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='NrgProtRq', expression="!TLTADmnd! - !ProtHabNrg! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'RstorHA', "DOUBLE", 9, 2, "", "Restoration HA based off weighted mean (Surplus/weighted mean)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='RstorHA', expression="abs(!SurpDef!/!wtMeankcal!) if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'RstorProtHA', "DOUBLE", 9, 2, "", "Protection HA based off weighted mean")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'RstorProtHA', "DOUBLE", 9, 2, "", "Protection HA based off weighted mean (Energy protected needed/weighted mean)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='RstorProtHA', expression="(!NrgProtRq!/!wtMeankcal!) if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")    
-    for field in self.kcalList:
-      arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_'+field, field, field)
-      arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field=field, expression="abs(!SurpDef!) * !"+field+"! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
+    #for field in self.kcalList:
+      #arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MEAN_'+field, field, field + 'Percentage')
+      #arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field=field, expression="abs(!SurpDef!) * !"+field+"! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.Copy_management(os.path.join(self.scratch, 'AllDataBin'), os.path.join(self.scratch, self.aoiname+'_Output'))
 
   def unionEnergy(self, supply, demand):
@@ -312,13 +347,16 @@ class Waterfowlmodel:
     if not arcpy.Exists(self.EnergySurplusDeficit):
       arcpy.Union_analysis([supply, demand], self.EnergySurplusDeficit)
       if not len(arcpy.ListFields(self.EnergySurplusDeficit,'SurpDef'))>0:
+        print('Adding SurpDef')
         arcpy.AddField_management(self.EnergySurplusDeficit, 'SurpDef', "DOUBLE", 9, 2, "", "EnergySurplusDeficit")
-        arcpy.CalculateField_management(self.EnergySurplusDeficit, 'SurpDef', "!THabNrg! - !TLTADmnd!", "PYTHON3")
+      else:
+        print('SurfDef exists')
+      arcpy.CalculateField_management(self.EnergySurplusDeficit, 'SurpDef', "!THabNrg! - !TLTADmnd!", "PYTHON3")
     return self.EnergySurplusDeficit
 
   def bin(self, aggData, bins, cat):
     """
-    Aggregate sum based on maximum area overlap.
+    **DEPRECATED AND NOT USED. Aggregate sum based on maximum area overlap.
 
     :param aggData: Dataset that contains information to be aggregated spatially
     :type aggData: str
@@ -333,7 +371,7 @@ class Waterfowlmodel:
     overlap.SpatialJoinLargestOverlap(bins,aggData,newbin,True, 'largest_overlap')
     return newbin
 
-  def aggproportion(aggTo, aggData, IDField, aggFields, dissolveFields, scratch, cat,aggStat = 'SUM'):
+  def aggproportion(self, aggTo, aggData, IDField, aggFields, dissolveFields, scratch, cat,aggStat = 'SUM'):
     """
     Calculates proportional sum aggregate based on area within specified columns of a given dataset to features from another dataset.
 
@@ -357,38 +395,100 @@ class Waterfowlmodel:
     :rtype:  str
     """
     # Script arguments
-    print('Proportional aggregation for ' + cat)
-    Aggregation_feature = aggTo
-    Data_to_aggregate = aggData
-    Fields_to_aggregate = aggFields
-    FieldsToAgg = IDField + ' ' + IDField + ' VISIBLE NONE;'
-    AggStats = ''
-    for a in aggFields:
-        FieldsToAgg = FieldsToAgg + a + ' ' + a + ' VISIBLE RATIO;'
-        AggStats = AggStats +  a + ' ' + aggStat + ';'
-    WFSD_BCR = aggTo
-    Dissolve_Field_s_ = dissolveFields
-    # Local variables:
-    outLayer = os.path.join(scratch, 'aggproptemp' + cat)
-    outLayerI = os.path.join(scratch, 'aggUnion' + cat)
-    aggToOut = os.path.join(scratch, 'aggTo' + cat)
-    # Process: Make Feature Layer
-    if arcpy.Exists(aggToOut):
-      print('Already dissolved and aggregated everything')
-      return aggToOut
-    else:
-      #print(FieldsToAgg)
-      arcpy.MakeFeatureLayer_management(in_features=aggData, out_layer=outLayer,field_info=FieldsToAgg)
-      arcpy.FeatureClassToFeatureClass_conversion(outLayer, scratch, 'CheckFeatureClassProportion')
-      arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
-    arcpy.Dissolve_management(in_features=outLayerI, out_feature_class=aggToOut, dissolve_field=Dissolve_Field_s_, statistics_fields=AggStats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
-    return aggToOut    
+    try:
+      print('Proportional aggregation for ' + cat)
+      FieldsToAgg = IDField + ' ' + IDField + ' VISIBLE NONE;'
+      AggStats = ''
+      for a in aggFields:
+          FieldsToAgg = FieldsToAgg + a + ' ' + a + ' VISIBLE RATIO;'
+          AggStats = AggStats +  a + ' ' + aggStat + ';'
+      Dissolve_Field_s_ = dissolveFields
+      # Local variables:
+      outLayer = os.path.join(scratch, 'aggproptemp' + cat)
+      outLayerI = os.path.join(scratch, 'aggUnion' + cat)
+      aggToOut = os.path.join(scratch, 'aggTo' + cat)
+      # Process: Make Feature Layer
+      if arcpy.Exists(aggToOut):
+        print('Already dissolved and aggregated everything for ' + cat)
+        return aggToOut
+      else:
+        arcpy.MakeFeatureLayer_management(in_features=aggData, out_layer=outLayer,field_info=FieldsToAgg)
+        arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
+      arcpy.Dissolve_management(in_features=outLayerI, out_feature_class=aggToOut, dissolve_field=Dissolve_Field_s_, statistics_fields=AggStats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+      arcpy.Delete_management(outLayerI)
+    except Exception as e:
+      print(e)
+    return aggToOut
+
+  def aggByField(self, mergeAll, scratch, cat):
+    """
+    Calculates proportion of desired aggregation fields based on intersection and proportion of another field.
+    Make Feature Layer of binned supply energy.  Use ratio policy on MERGED ENERGY
+
+
+    :param aggTo: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+    :type aggTo: str
+    :param aggData: Spatial data to be aggregated
+    :type aggData: str
+    :param IDField: ID field used for data aggregation
+    :type IDField: str
+    :param aggFields: Field for aggregation
+    :type aggFields: str
+    :param dissolveFields: Field for dissolving bins after union
+    :type dissolveFields: str
+    :param scratch: Scratch geodatabase location
+    :type scratch: str  
+    :param cat: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+    :type cat: str
+    :param aggStat: Aggregation statistic.  Default is SUM
+    :type aggStat: str    
+    :return: Spatial Sum aggregate of aggData within supplied bins
+    :rtype:  str
+    """
+    try:
+      print('Proportioning energy demand based on energy supply.')
+      outLayer = os.path.join(scratch, 'aggByField' + cat)
+      print('outlayer:', outLayer)
+      arcpy.Statistics_analysis(in_table=mergeAll, out_table=outLayer + 'hucfipsum', statistics_fields="avalNrgy SUM", case_field="huc12;fips")
+      arcpy.Statistics_analysis(in_table=mergeAll + 'hucfipsum', out_table=outLayer + 'fipsum', statistics_fields="SUM_avalNrgy SUM", case_field="fips")
+      print('stats calculated')
+      arcpy.AddField_management(outLayer + 'hucfipsum', "PropPCT", "DOUBLE", 9, "", "", "EnergyProportionPercent", "NULLABLE", "REQUIRED")
+      hucfip = arcpy.AddJoin_management(in_layer_or_view=outLayer + 'hucfipsum', in_field="fips", join_table=outLayer + 'fipsum', join_field="fips", join_type="KEEP_ALL")
+      print('joined - printing field names')
+      fieldList = arcpy.ListFields(hucfip)
+      for field in fieldList:
+        print(field.name)
+      arcpy.CalculateField_management(in_table=hucfip, field="PropPCT", expression="(!aggByField" + cat + "hucfipsum.SUM_avalNrgy!/!aggByField" + cat + "fipsum.join_avalNrgy!)*100", expression_type="PYTHON_9.3", code_block="")
+      print('dissolve and mess with fields')
+      arcpy.Dissolve_management(in_features=mergeAll, out_feature_class=outLayer+'dissolveHUC', dissolve_field="huc12", statistics_fields="LTADUD MAX;LTAPopObj MAX;LTADemand MAX", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+      if not len(arcpy.ListFields(outLayer+'dissolveHUC','PropPCT'))>0:
+        arcpy.AddField_management(outLayer+'dissolveHUC', "PropPCT", "DOUBLE", 9, "", "", "EnergyProportionPercent", "NULLABLE", "REQUIRED")
+      arcpy.AlterField_management(outLayer+'dissolveHUC', 'MAX_LTADUD', 'LTADUD', 'Long term average Duck use days')
+      arcpy.AlterField_management(outLayer+'dissolveHUC', 'MAX_LTAPopObj', 'LTAPopObj', 'Long term average Population objective')
+      arcpy.AlterField_management(outLayer+'dissolveHUC', 'MAX_LTADemand', 'LTADemand', 'Long term average energy demand (kcal)')
+      print('join and calc')
+      dissolvehuc = arcpy.AddJoin_management(in_layer_or_view=outLayer+'dissolveHUC', in_field="huc12", join_table=outLayer + 'hucfipsum', join_field="huc12", join_type="KEEP_ALL")
+      fieldList = arcpy.ListFields(dissolvehuc)
+      for field in fieldList:
+        print(field.name)
+      arcpy.CalculateField_management(in_table=dissolvehuc, field='LTADUD', expression="!aggByField" + cat + "dissolveHUC.LTADUD! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
+      arcpy.CalculateField_management(in_table=dissolvehuc, field='LTAPopObj', expression="!aggByField" + cat + "dissolveHUC.LTAPopObj! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
+      arcpy.CalculateField_management(in_table=dissolvehuc, field='LTADemand', expression="!aggByField" + cat + "dissolveHUC.LTADemand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
+      return outLayer + 'dissolveHUC'
+    except Exception as e:
+      print(e)
+      exc_type, exc_obj, exc_tb = sys.exc_info()
+      fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+      print(exc_type, fname, exc_tb.tb_lineno)
+      sys.exit()
 
   def calcProtected(self):
     """
     Creates attribute for hectares of habitat and hectares of protected habitat
     """
     if not arcpy.Exists(self.protectedEnergy):
+      print('Clean energy')
+      arcpy.RepairGeometry_management(self.mergedenergy)
       arcpy.Clip_analysis(self.mergedenergy, self.protectedMerge, self.protectedEnergy)
       arcpy.CalculateField_management(in_table=self.protectedEnergy, field="CalcHA", expression="!shape.area@hectares!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=self.protectedEnergy, field="avalNrgy", expression="!CalcHA!* !kcal!", expression_type="PYTHON_9.3", code_block="")
@@ -396,6 +496,11 @@ class Waterfowlmodel:
   def prepProtected(self, nced, padus):
     """
     Prepares protected lands by merging nced and padus by deleting NCED from PAD and running a union.
+
+    :param nced: NCED feature class
+    :type nced: str
+    :param padus: PADUS feature class
+    :type padus: str
     """
     if not arcpy.Exists(os.path.join(self.scratch, 'delncedfrompad')):
       arcpy.Erase_analysis(padus, nced, os.path.join(self.scratch, 'delncedfrompad'))
@@ -405,24 +510,26 @@ class Waterfowlmodel:
         arcpy.AddField_management(self.protectedMerge, 'CalcHA', "DOUBLE", 9, 2, "", "GIS Hectares") 
     arcpy.CalculateGeometryAttributes_management(self.protectedMerge, "CalcHA AREA", area_unit="HECTARES")      
     
-  def prepnpTables(self):
+  def prepnpTables(self, demand, binme, energy, scratch):
     """
     Reads in merged energy dataset, repairs it, then exports a csv file for use in habitat proportion calculations.
     """    
-    arcpy.FeatureClassToFeatureClass_conversion(in_features=self.mergedenergy, out_path=os.path.join(self.scratch), out_name="testMerged", where_clause="CLASS IS NOT NULL")
-    if arcpy.Exists(os.path.join(self.scratch, "HabitatInAOI")):
-      arcpy.Delete_management(os.path.join(self.scratch, 'HabitatInAOI'))
-    print('Clean energy')
-    arcpy.RepairGeometry_management(self.mergedenergy)
-    print('Union energy and bin')
-    arcpy.Union_analysis([self.mergedenergy, self.binIt], os.path.join(self.scratch, "HabitatInAOI"))
+    outLayer = os.path.join(scratch, 'MergeAll')
+    print('outlayer:', outLayer)
+    unionme = ' #; '.join([demand, binme, energy]) + ' #'
+    #print(unionme)
+    if not arcpy.Exists(outLayer):
+      print('run union')
+      arcpy.Union_analysis(in_features=unionme, out_feature_class=outLayer, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
     if arcpy.Exists(os.path.join(os.path.dirname(self.scratch),'tbl.csv')):
       arcpy.Delete_management(os.path.join(os.path.dirname(self.scratch),'tbl.csv'))
-    arcpy.TableToTable_conversion(in_rows=os.path.join(self.scratch, "HabitatInAOI"), out_path=os.path.dirname(self.scratch), out_name="tbl.csv", where_clause="", field_mapping='avalNrgy "AvailableEnergy" true true false 8 Double 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',avalNrgy,-1,-1;CLASS "CLASS" true true false 255 Text 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',CLASS,-1,-1;CalcHA "Hectares" true true false 8 Double 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',CalcHA,-1,-1;kcal "kcal" true true false 4 Long 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',kcal,-1,-1;HUC12 "HUC12" true true false 12 Text 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',HUC12,-1,-1;Shape_Length "Shape_Length" false true true 8 Double 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',Shape_Length,-1,-1;Shape_Area "Shape_Area" false true true 8 Double 0 0 ,First,#,'+os.path.join(self.scratch, "HabitatInAOI")+',Shape_Area,-1,-1', config_keyword="")
+    arcpy.TableToTable_conversion(in_rows=outLayer, out_path=os.path.dirname(self.scratch), out_name="tbl.csv", where_clause="", field_mapping='avalNrgy "AvailableEnergy" true true false 8 Double 0 0 ,First,#,'+outLayer+',avalNrgy,-1,-1;CLASS "CLASS" true true false 255 Text 0 0 ,First,#,'+outLayer+',CLASS,-1,-1;CalcHA "Hectares" true true false 8 Double 0 0 ,First,#,'+outLayer+',CalcHA,-1,-1;kcal "kcal" true true false 4 Long 0 0 ,First,#,'+outLayer+',kcal,-1,-1;HUC12 "HUC12" true true false 12 Text 0 0 ,First,#,'+outLayer+',HUC12,-1,-1;Shape_Length "Shape_Length" false true true 8 Double 0 0 ,First,#,'+outLayer+',Shape_Length,-1,-1;Shape_Area "Shape_Area" false true true 8 Double 0 0 ,First,#,'+outLayer+',Shape_Area,-1,-1', config_keyword="")
+    print('unioned')
+    return outLayer
 
   def pctHabitatType(self):
     """
-    Calculates proportion of habitat type by bin unit.
+    Calculates proportion of habitat type by bin feature.
     """
     print('Converting to pandas')
     df = pd.read_csv(os.path.join(os.path.dirname(self.scratch),'tbl.csv'), usecols=['avalNrgy','CLASS', 'CalcHA', self.binUnique, 'kcal'], dtype={'avalNrgy': np.float, 'CLASS':np.string_,'CalcHA':np.float, self.binUnique:np.string_})
@@ -434,13 +541,10 @@ class Waterfowlmodel:
     outdf = outdf.fillna(0)
     print(outdf.head())
     print(outdf.sum(axis=1))
-    # pull in kcal and calculate pct/kcal.  Once deficit is pulled in multiple by that to get hectares needed
-    kcalcsv = pd.read_csv(self.kcalTbl)
-    #print(self.kcalList)
     badfields = []
     for field in self.kcalList:
       try:
-        outdf[field] = outdf[field]*.01 / kcalcsv[kcalcsv['habitatType'] == field]['kcal'].iloc[0]
+        outdf[field] = outdf[field] # Percent only
       except:
         print('Problem with key', field)
         badfields.append(field)
@@ -449,7 +553,6 @@ class Waterfowlmodel:
     outdf = outdf.reset_index()
     outdf[self.binUnique] = outdf[self.binUnique].astype(str)
     outnp = np.array(np.rec.fromrecords(outdf))
-    #print(outdf.head())
     names = outdf.dtypes.index.tolist()
     outnp.dtype.names = tuple(names)
     arcpy.env.overwriteOutput = True
@@ -457,14 +560,14 @@ class Waterfowlmodel:
       arcpy.Delete_management(os.path.join(self.scratch, 'HabitatPct'))
     arcpy.da.NumPyArrayToTable(outnp, os.path.join(self.scratch, 'HabitatPct'))
     for field in self.kcalList:
-      if not len(arcpy.ListFields(os.path.join(self.scratch, 'HabitatInAOI'),field))>0:
-        arcpy.AddField_management(os.path.join(self.scratch, 'HabitatInAOI'), field, "DOUBLE")
-    joinedhab = arcpy.AddJoin_management(in_layer_or_view=os.path.join(self.scratch, 'HabitatInAOI'), in_field="HUC12", join_table=os.path.join(self.scratch, 'HabitatPct'), join_field="HUC12", join_type="KEEP_ALL")
+      if not len(arcpy.ListFields(os.path.join(self.scratch, 'aggByFieldenergydemand'),field))>0:
+        arcpy.AddField_management(os.path.join(self.scratch, 'aggByFieldenergydemand'), field, "DOUBLE")
+    joinedhab = arcpy.AddJoin_management(in_layer_or_view=os.path.join(self.scratch, 'aggByFieldenergydemand'), in_field="HUC12", join_table=os.path.join(self.scratch, 'HabitatPct'), join_field="HUC12", join_type="KEEP_ALL")
     print('Calculating sum of habitat hectares by bin')
     for field in self.kcalList:
       if not field in badfields:
         arcpy.CalculateField_management(joinedhab, field, '!HabitatPct.'+field+'!', "PYTHON3")
-    return os.path.join(self.scratch,'HabitatInAOI')
+    return os.path.join(self.scratch,'aggByFieldenergydemand')
 
   def weightedMean(self):
     """
@@ -484,7 +587,7 @@ class Waterfowlmodel:
     if arcpy.Exists(os.path.join(self.scratch, 'HUCwtMean')):
       arcpy.Delete_management(os.path.join(self.scratch, 'HUCwtMean'))
     arcpy.da.NumPyArrayToTable(outnp, os.path.join(self.scratch, 'HUCwtMean'))
-    arcpy.AddField_management(os.path.join(self.scratch, 'HabitatInAOI'), 'wtMeankcal', "DOUBLE")
-    joinedhab = arcpy.AddJoin_management(in_layer_or_view=os.path.join(self.scratch, 'HabitatInAOI'), in_field="HUC12", join_table=os.path.join(self.scratch, 'HUCwtMean'), join_field="HUC12", join_type="KEEP_ALL")
+    arcpy.AddField_management(os.path.join(self.scratch, 'aggByFieldenergydemand'), 'wtMeankcal', "DOUBLE")
+    joinedhab = arcpy.AddJoin_management(in_layer_or_view=os.path.join(self.scratch, 'aggByFieldenergydemand'), in_field="HUC12", join_table=os.path.join(self.scratch, 'HUCwtMean'), join_field="HUC12", join_type="KEEP_ALL")
     arcpy.CalculateField_management(joinedhab, 'wtMeankcal', '!HUCwtMean.wtmean!', "PYTHON3")
-    return os.path.join(self.scratch,'HabitatInAOI')
+    return os.path.join(self.scratch,'aggByFieldenergydemand')
