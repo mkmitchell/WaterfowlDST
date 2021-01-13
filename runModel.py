@@ -39,7 +39,7 @@ def main(argv):
    :type binUnique: str   
    :param aoi: Area of interest shapefile
    :type aoi: str
-   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, protected lands, habitat proportion]
+   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, protected lands, habitat proportion, weighted mean]
    :type debug: str   
    """
    aoi = ''
@@ -52,6 +52,8 @@ def main(argv):
    workspace = ''
    geodatabase = ''
    scratchgdb = ''
+   outputgdb = ''
+   outputFolder = ''
    extra = {}
    mergebin = []
 
@@ -67,7 +69,7 @@ def main(argv):
    parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
    parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column name")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
-   parser.add_argument('--debug', '-z', nargs=4, type=int,default=[], help="Run specific sections of code.  1 or 0.  Energy supply, Energy demand, protected lands, habitat proportion")
+   parser.add_argument('--debug', '-z', nargs=5, type=int,default=[], help="Run specific sections of code.  1 or 0.  Energy supply, Energy demand, protected lands, habitat proportion")
    
    # parse the command line
    args = parser.parse_args()
@@ -123,26 +125,37 @@ def main(argv):
       sys.exit(2)
    aoi = os.path.join(geodatabase,args.aoi[0])
    aoiname = args.aoi[0]
+   outputFolder = os.path.join(workspace, args.aoi[0], 'outout')
    if not (os.path.exists(os.path.join(workspace, args.aoi[0]))):
       print('Creating project folder: ', os.path.join(os.path.join(workspace, args.aoi[0])))
       os.mkdir(os.path.join(workspace, args.aoi[0]))
+      os.mkdir(outputFolder)
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
       arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
+      arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_output.gdb')
    else:
       print("Project folder already exists.  Using it")
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
+      outputgdb = os.path.join(workspace, args.aoi[0], 'output', args.aoi[0] + "_output.gdb")
       if not (os.path.exists(scratchgdb)):
          print('Creating scratch geodatabase: ', scratchgdb)
-         arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
+         arcpy.CreateFileGDB_management(scratchgdb)
       else:
-         print("Scratch GDB already exists.  Using it")            
+         print("Scratch GDB already exists.  Using it")
+      if not os.path.exists(outputFolder):
+         os.mkdir(outputFolder)
+      if not (os.path.exists(outputgdb)):
+         print('Creating output geodatabase: ', outputgdb)
+         arcpy.CreateFileGDB_management(outputgdb)
+      else:
+         print("Output GDB already exists.  Using it")               
    if not (arcpy.Exists(aoi)):
             print("aoi layer doesn't exist.")
             sys.exit(2)
    if args.debug:
       debug = args.debug
    else:
-      debug = [1, 1, 1, 1]
+      debug = [1, 1, 1, 1, 1]
        
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
@@ -243,7 +256,13 @@ def main(argv):
       if not debug[1]:
          mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
       habpct = dst.pctHabitatType()
+   else:
+      habpct = os.path.join(dst.scratch,'aggByFieldenergydemand')
+
+   if debug[4]: #Weighted mean
       print('\n#### HABITAT WEIGHTED MEAN ####')
+      if not debug[1]:
+         mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
       habpct = dst.weightedMean()
    else:
       habpct = os.path.join(dst.scratch,'aggByFieldenergydemand')
@@ -254,7 +273,9 @@ def main(argv):
    mergebin.append(dst.protectedEnergy) #Protected energy
    mergebin.append(habpct) #Habitat proportions
    print(mergebin)
-   dst.dstOutout(mergebin, [dst.binUnique])
+   outData = dst.dstOutout(mergebin, [dst.binUnique], outputgdb)
+   waterfowlmodel.zipup.AddHUCNames(outData, 'HUC12', binIt, 'huc12')
+   waterfowlmodel.zipup.zipUp(outputFolder, outputFolder)
    print(time.clock() - startT)
    print('\n Complete')
    print('#####################################\n')

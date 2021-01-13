@@ -267,14 +267,16 @@ class Waterfowlmodel:
           continue
     return inDataset
 
-  def dstOutout(self, mergebin, dissolveFields):
+  def dstOutout(self, mergebin, dissolveFields, outputgdb):
     """
     Runs energy difference between NAWCA stepdown objectives and available habitat.
 
     :param mergebin: List that holds all datasets to be merged for output
     :type mergebin: list
     :param dissolveFields: Unique field that all features are joined by
-    :type dissolveFields: str    
+    :type dissolveFields: str
+    :param outputgdb: Output gdb that will be zipped and shipped
+    :type outputgdb: str   
     :return: Shapefile containing model results at the county level
     :rtype: str
     """
@@ -332,6 +334,10 @@ class Waterfowlmodel:
       #arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MEAN_'+field, field, field + 'Percentage')
       #arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field=field, expression="abs(!SurpDef!) * !"+field+"! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.Copy_management(os.path.join(self.scratch, 'AllDataBin'), os.path.join(self.scratch, self.aoiname+'_Output'))
+    if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_Output')):
+      arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_Output'))
+    arcpy.Copy_management(os.path.join(self.scratch, self.aoiname+'_Output'), os.path.join(outputgdb, self.aoiname+'_Output')) 
+    return os.path.join(self.scratch, self.aoiname+'_Output')
 
   def unionEnergy(self, supply, demand):
     """
@@ -420,16 +426,16 @@ class Waterfowlmodel:
       print('Proportioning energy demand based on energy supply.')
       outLayer = os.path.join(scratch, 'aggByField' + cat)
       print('outlayer:', outLayer)
+      print('Calculating stats')
       arcpy.Statistics_analysis(in_table=mergeAll, out_table=outLayer + 'hucfipsum', statistics_fields="avalNrgy SUM", case_field="huc12;fips")
-      arcpy.Statistics_analysis(in_table=mergeAll + 'hucfipsum', out_table=outLayer + 'fipsum', statistics_fields="SUM_avalNrgy SUM", case_field="fips")
-      print('stats calculated')
+      arcpy.Statistics_analysis(in_table=outLayer + 'hucfipsum', out_table=outLayer + 'fipsum', statistics_fields="SUM_avalNrgy SUM", case_field="fips")
       arcpy.AddField_management(outLayer + 'hucfipsum', "PropPCT", "DOUBLE", 9, "", "", "EnergyProportionPercent", "NULLABLE", "REQUIRED")
       hucfip = arcpy.AddJoin_management(in_layer_or_view=outLayer + 'hucfipsum', in_field="fips", join_table=outLayer + 'fipsum', join_field="fips", join_type="KEEP_ALL")
       print('joined - printing field names')
       fieldList = arcpy.ListFields(hucfip)
       for field in fieldList:
         print(field.name)
-      arcpy.CalculateField_management(in_table=hucfip, field="PropPCT", expression="(!aggByField" + cat + "hucfipsum.SUM_avalNrgy!/!aggByField" + cat + "fipsum.join_avalNrgy!)*100", expression_type="PYTHON_9.3", code_block="")
+      arcpy.CalculateField_management(in_table=hucfip, field="PropPCT", expression="(!aggByField" + cat + "hucfipsum.SUM_avalNrgy!/!aggByField" + cat + "fipsum.SUM_SUM_avalNrgy!)*100", expression_type="PYTHON_9.3", code_block="")
       print('dissolve and mess with fields')
       arcpy.Dissolve_management(in_features=mergeAll, out_feature_class=outLayer+'dissolveHUC', dissolve_field="huc12", statistics_fields="LTADUD MAX;LTAPopObj MAX;LTADemand MAX", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       if not len(arcpy.ListFields(outLayer+'dissolveHUC','PropPCT'))>0:
