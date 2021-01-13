@@ -8,6 +8,7 @@ import os, sys, getopt, datetime, logging, arcpy, argparse, time
 import waterfowlmodel.base as waterfowl
 import waterfowlmodel.dataset
 import waterfowlmodel.publicland
+import waterfowlmodel.zipup
 
 def printlog(txt, var):
    print(txt + ':', var)
