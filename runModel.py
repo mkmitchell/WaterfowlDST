@@ -133,7 +133,7 @@ def main(argv):
       os.mkdir(outputFolder)
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
       arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
-      arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_output.gdb')
+      arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')
    else:
       print("Project folder already exists.  Using it")
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
@@ -147,7 +147,7 @@ def main(argv):
          os.mkdir(outputFolder)
       if not (os.path.exists(outputgdb)):
          print('Creating output geodatabase: ', outputgdb)
-         arcpy.CreateFileGDB_management(outputgdb)
+         arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')
       else:
          print("Output GDB already exists.  Using it")               
    if not (arcpy.Exists(aoi)):
@@ -185,6 +185,7 @@ def main(argv):
    print('#####################################\n')
 
    startT = time.clock()
+   print('\n#### Create waterfowl object ####')
    dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, binUnique, extra, scratchgdb)
    print(time.clock() - startT)
    print('\nWaterfowl object data')
@@ -275,8 +276,8 @@ def main(argv):
    mergebin.append(habpct) #Habitat proportions
    print(mergebin)
    outData = dst.dstOutout(mergebin, [dst.binUnique], outputgdb)
-   waterfowlmodel.zipup.AddHUCNames(outData, 'HUC12', binIt, 'huc12')
-   waterfowlmodel.zipup.zipUp(outputFolder, outputFolder)
+   waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
+   waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
    print(time.clock() - startT)
    print('\n Complete')
    print('#####################################\n')
