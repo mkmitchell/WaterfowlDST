@@ -60,7 +60,7 @@ class Waterfowlmodel:
 
     :param inFeature: Feature to project to Albers
     :type inFeature: str
-    :param cat: Category name used for unique storage
+    :param cat: Category name used for unique storage and identification
     :type cat: str
     :return outfc: Location of projected feature
     :rtype outfc: str    
@@ -82,10 +82,8 @@ class Waterfowlmodel:
     """
     Selects bins that intersect the AOI.  Incorporated to remove edge effect error.
 
-    :param inFeature: Features used as the area of interst to select intersecting bin features.  Feature AOI name
-    :type inFeature: str
-    :param cat: Category name used for unique storage
-    :type cat: str
+    :param aoi: Features used as the area of interest to select intersecting bin features.  Feature AOI name
+    :type aoi: str
     :param bins: Feature bin name
     :type bins: str
     :return outfc: Location of selected bins feature dataset
@@ -194,7 +192,7 @@ class Waterfowlmodel:
         else:
           continue
 
-  def joinEnergy(self, mergedenergy, wetland, extra):
+  def joinEnergy(self, wetland, extra, mergedenergy):
     """
     Joins energy layers (Wetland with extra)
 
@@ -202,8 +200,10 @@ class Waterfowlmodel:
     :type wetland: str
     :param extra: Location of the extra habitat supply datasets
     :type extra: str    
-    :return mergedenergy: Merged feature location
-    :rtype mergedenergy: str
+    :param mergedenergy: Merged energy feature location
+    :type mergedenergy: str
+    :return: Merged energy feature location
+    :rtype: str
     """    
     #Delete Wetland area from each extra dataset
     if arcpy.Exists(mergedenergy):
@@ -225,8 +225,8 @@ class Waterfowlmodel:
     :type inDataset: str
     :param xTable: Location of csv or json file with two columns, from class and to class
     :type xTable: str
-    :param curclass: Field that lists current class within inDataset
-    :type curclass: str.
+    :return: Modifed inDataset
+    :rtype: str
     """
     print('Calculate energy for', inDataset)
     logging.info("Calculate energy for " + inDataset)
@@ -354,23 +354,6 @@ class Waterfowlmodel:
       arcpy.CalculateField_management(self.EnergySurplusDeficit, 'SurpDef', "!THabNrg! - !TLTADmnd!", "PYTHON3")
     return self.EnergySurplusDeficit
 
-  def bin(self, aggData, bins, cat):
-    """
-    **DEPRECATED AND NOT USED. Aggregate sum based on maximum area overlap.
-
-    :param aggData: Dataset that contains information to be aggregated spatially
-    :type aggData: str
-    :param bins: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
-    :type bins: str
-    :param cat: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
-    :type cat: str    
-    :return: Spatial Sum aggregate of aggData within supplied bins
-    :rtype:  str
-    """
-    newbin = os.path.join(self.scratch, cat + 'bin')
-    overlap.SpatialJoinLargestOverlap(bins,aggData,newbin,True, 'largest_overlap')
-    return newbin
-
   def aggproportion(self, aggTo, aggData, IDField, aggFields, dissolveFields, scratch, cat,aggStat = 'SUM'):
     """
     Calculates proportional sum aggregate based on area within specified columns of a given dataset to features from another dataset.
@@ -422,27 +405,15 @@ class Waterfowlmodel:
 
   def aggByField(self, mergeAll, scratch, cat):
     """
-    Calculates proportion of desired aggregation fields based on intersection and proportion of another field.
-    Make Feature Layer of binned supply energy.  Use ratio policy on MERGED ENERGY
+    Aggregates energy demand on a smaller scale to multple larger scale features.  Example: County to HUC12.
 
-
-    :param aggTo: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
-    :type aggTo: str
-    :param aggData: Spatial data to be aggregated
-    :type aggData: str
-    :param IDField: ID field used for data aggregation
-    :type IDField: str
-    :param aggFields: Field for aggregation
-    :type aggFields: str
-    :param dissolveFields: Field for dissolving bins after union
-    :type dissolveFields: str
+    :param mergeAll: Merged energy returned from self.prepnpptables.
+    :type mergeAll: str
     :param scratch: Scratch geodatabase location
     :type scratch: str  
     :param cat: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
     :type cat: str
-    :param aggStat: Aggregation statistic.  Default is SUM
-    :type aggStat: str    
-    :return: Spatial Sum aggregate of aggData within supplied bins
+    :return: Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply
     :rtype:  str
     """
     try:
@@ -513,6 +484,17 @@ class Waterfowlmodel:
   def prepnpTables(self, demand, binme, energy, scratch):
     """
     Reads in merged energy dataset, repairs it, then exports a csv file for use in habitat proportion calculations.
+
+    :param demand: Energy demand layer location
+    :type demand: str
+    :param binme: Bin to aggregate data to
+    :type binme: str
+    :param energy: Merged energy supply layer
+    :type energy: str
+    :param scratch: Scratch geodatabase location
+    :type scratch: str
+    :return: Merged energy supply and demand layer location
+    :rtype: str 
     """    
     outLayer = os.path.join(scratch, 'MergeAll')
     print('outlayer:', outLayer)

@@ -52,7 +52,6 @@ def main(argv):
    workspace = ''
    geodatabase = ''
    scratchgdb = ''
-   aoifolder = ''
    extra = {}
    mergebin = []
 
@@ -187,7 +186,7 @@ def main(argv):
       print('Impoundments crossclass')
       dst.crossClass(dst.extra[1][0], dst.extra[1][1])
       print('Join supply habitats')
-      allEnergy = dst.joinEnergy(dst.mergedenergy, dst.wetland, dst.extra)
+      allEnergy = dst.joinEnergy(dst.wetland, dst.extra, dst.mergedenergy)
       print('Prep supply Energy')
       allEnergy = dst.prepEnergyFast(allEnergy, dst.kcalTbl)
       allEnergy = dst.mergedenergy
