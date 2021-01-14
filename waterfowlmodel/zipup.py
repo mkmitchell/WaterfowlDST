@@ -5,17 +5,17 @@ import shutil, os, arcpy
 from datetime import datetime
 from arcgis.gis import GIS
 
-def AddHUCNames(outputfc, output_hucID_field_name = 'HUC12', hucFC, hucID_field_name = 'huc12', hucName_field_name='name'):
+def AddHUCNames(outputfc, hucFC, output_hucID_field_name = 'HUC12', hucID_field_name = 'huc12', hucName_field_name='name'):
 
     """
     Adds a label field to the model output so that the sub-watersheds can be labelled by name. 
 
     :param outputfc: The path to the model output feature class
     :type outputfc: str
-    :param output_hucID_field_name: The default field name for the HUC12 watershed ID in the model output. Defaults to 'HUC12'
-    :type output_hucID_field_name: str
     :param hucFC: The path to the feature class or shapefile containing the watershed IDs and names.
     :type hucFC: str
+    :param output_hucID_field_name: The default field name for the HUC12 watershed ID in the model output. Defaults to 'HUC12'
+    :type output_hucID_field_name: str
     :param hucID_field_name: The fieldname in hucFC for the watershed ID numbers. Defaults to 'huc12'.
     :type hucID_field_name: str
     :param hucName_field_name: The fieldname in hucFC for the watershed names. Defaults to 'name'.

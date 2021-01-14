@@ -133,7 +133,7 @@ def main(argv):
       os.mkdir(outputFolder)
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
       arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
-      arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_output.gdb')
+      arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')
    else:
       print("Project folder already exists.  Using it")
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
@@ -147,7 +147,7 @@ def main(argv):
          os.mkdir(outputFolder)
       if not (os.path.exists(outputgdb)):
          print('Creating output geodatabase: ', outputgdb)
-         arcpy.CreateFileGDB_management(outputgdb)
+         arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')
       else:
          print("Output GDB already exists.  Using it")               
    if not (arcpy.Exists(aoi)):
@@ -166,30 +166,32 @@ def main(argv):
    
    print('\nModel Input parameters')
    print('#####################################')
-   printlog('Workspace', workspace)
-   printlog('Date', datetime.datetime.now().strftime("%m_%d_%Y"))
-   printlog('Wetland layer', wetland.inData)
-   printlog('Wetland crosswalk', wetland.crosswalk)
-   printlog('PAD', padus.inData)
-   printlog('NCED', nced.inData)
-   printlog('Geodatabase', geodatabase)
-   printlog('Energy Supply table', kcalTable)
-   printlog('Energy demand layer', demand.inData)
-   printlog('Bin layer', binIt)
-   printlog('Bin unique', binUnique)
-   printlog('Extra datasets', ' '.join(map(str, list(extra))))
-   printlog('Bin layer', binIt)
-   printlog('Region of interest', aoi)
-   printlog('Scratch gdb', scratchgdb)
-   printlog('Debugging', ' '.join(map(str, list(debug))))
+   printlog('\tWorkspace', workspace)
+   printlog('\tDate', datetime.datetime.now().strftime("%m_%d_%Y"))
+   printlog('\tWetland layer', wetland.inData)
+   printlog('\tWetland crosswalk', wetland.crosswalk)
+   printlog('\tPAD', padus.inData)
+   printlog('\tNCED', nced.inData)
+   printlog('\tGeodatabase', geodatabase)
+   printlog('\tEnergy Supply table', kcalTable)
+   printlog('\tEnergy demand layer', demand.inData)
+   printlog('\tBin layer', binIt)
+   printlog('\tBin unique', binUnique)
+   printlog('\tExtra datasets', ' '.join(map(str, list(extra))))
+   printlog('\tBin layer', binIt)
+   printlog('\tRegion of interest', aoi)
+   printlog('\tScratch gdb', scratchgdb)
+   printlog('\tOutput gdb', outputgdb)
+   printlog('\tDebugging', ' '.join(map(str, list(debug))))
    print('#####################################\n')
 
    startT = time.clock()
+   print('\n#### Create waterfowl object ####')
    dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, binUnique, extra, scratchgdb)
-   print(time.clock() - startT)
-   print('\nWaterfowl object data')
-   print('#####################################')
-   printlog('Wetland layer', ' '.join(map(str, list(dst.__dict__))))
+   #print(time.clock() - startT)
+   #print('\nWaterfowl object data')
+   #print('#####################################')
+   #printlog('Wetland layer', ' '.join(map(str, list(dst.__dict__))))
    startT = time.clock()
    if debug[0]: #Energy supply
       print('\n#### ENERGY SUPPLY ####')
@@ -273,15 +275,18 @@ def main(argv):
    mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
    mergebin.append(dst.protectedEnergy) #Protected energy
    mergebin.append(habpct) #Habitat proportions
-   print(mergebin)
+   #print(mergebin)
    outData = dst.dstOutout(mergebin, [dst.binUnique], outputgdb)
-   waterfowlmodel.zipup.AddHUCNames(outData, 'HUC12', binIt, 'huc12')
-   waterfowlmodel.zipup.zipUp(outputFolder, outputFolder)
+<<<<<<< HEAD
    if debug[5]: #Data check
       print('\n#### Checking data ####')
       arcpy.Statistics_analysis(in_table=outData, out_table=outLayer + 'hucfipsum', statistics_fields="avalNrgy SUM", case_field="huc12;fips")
+=======
+   waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
+   waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
+>>>>>>> master
    print(time.clock() - startT)
-   print('\n Complete')
+   print('\nComplete')
    print('#####################################\n')
 
 if __name__ == "__main__":
