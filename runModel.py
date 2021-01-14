@@ -126,7 +126,7 @@ def main(argv):
       sys.exit(2)
    aoi = os.path.join(geodatabase,args.aoi[0])
    aoiname = args.aoi[0]
-   outputFolder = os.path.join(workspace, args.aoi[0], 'outout')
+   outputFolder = os.path.join(workspace, args.aoi[0], 'output')
    if not (os.path.exists(os.path.join(workspace, args.aoi[0]))):
       print('Creating project folder: ', os.path.join(os.path.join(workspace, args.aoi[0])))
       os.mkdir(os.path.join(workspace, args.aoi[0]))
@@ -276,7 +276,7 @@ def main(argv):
    mergebin.append(dst.protectedEnergy) #Protected energy
    mergebin.append(habpct) #Habitat proportions
    #print(mergebin)
-   outData = dst.dstOutout(mergebin, [dst.binUnique], outputgdb)
+   outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
    waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
    waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
    print(time.clock() - startT)
