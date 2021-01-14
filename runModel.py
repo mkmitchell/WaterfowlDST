@@ -277,14 +277,17 @@ def main(argv):
    mergebin.append(habpct) #Habitat proportions
    #print(mergebin)
    outData = dst.dstOutout(mergebin, [dst.binUnique], outputgdb)
-<<<<<<< HEAD
+
    if debug[5]: #Data check
       print('\n#### Checking data ####')
-      arcpy.Statistics_analysis(in_table=outData, out_table=outLayer + 'hucfipsum', statistics_fields="avalNrgy SUM", case_field="huc12;fips")
-=======
+      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="avalNrgy SUM, LTADemand SUM, LTADUD SUM")
+      arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
+      arcpy.Statistics_analysis(in_table=dst.demand, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM, LTADUD SUM")
+
+
    waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
    waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
->>>>>>> master
+
    print(time.clock() - startT)
    print('\nComplete')
    print('#####################################\n')
