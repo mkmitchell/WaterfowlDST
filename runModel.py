@@ -288,8 +288,11 @@ def main(argv):
       print(outStats)
 
    waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
-   waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
-
+   try:
+      waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
+   except:
+      continue
+>>>>>>> master
    print(time.clock() - startT)
    print('\nComplete')
    print('#####################################\n')

@@ -336,7 +336,7 @@ class Waterfowlmodel:
     if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_Output')):
       arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_Output'))
     arcpy.Copy_management(os.path.join(self.scratch, self.aoiname+'_Output'), os.path.join(outputgdb, self.aoiname+'_Output')) 
-    return os.path.join(self.scratch, self.aoiname+'_Output')
+    return os.path.join(outputgdb, self.aoiname+'_Output')
 
   def unionEnergy(self, supply, demand):
     """
