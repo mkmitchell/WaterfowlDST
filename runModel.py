@@ -278,7 +278,10 @@ def main(argv):
    #print(mergebin)
    outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
    waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
-   waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
+   try:
+      waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
+   except:
+      continue
    print(time.clock() - startT)
    print('\nComplete')
    print('#####################################\n')
