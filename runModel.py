@@ -283,6 +283,10 @@ def main(argv):
       arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
       arcpy.Statistics_analysis(in_table=dst.demand, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM, LTADUD SUM")
    
+   for checkStats in [os.path.join(dst.scratch, 'outputStats'), os.path.join(dst.scratch, 'mergedEnergyStats'),os.path.join(dst.scratch, 'demandStats')]:
+      outStats = arcpy.da.TableToNumPyArray(checkStats, ('*'))
+      print(outStats)
+
    waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
    waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
 
