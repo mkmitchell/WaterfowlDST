@@ -266,7 +266,7 @@ class Waterfowlmodel:
           continue
     return inDataset
 
-  def dstOutout(self, mergebin, dissolveFields, outputgdb):
+  def dstOutput(self, mergebin, dissolveFields, outputgdb):
     """
     Runs energy difference between NAWCA stepdown objectives and available habitat.
 

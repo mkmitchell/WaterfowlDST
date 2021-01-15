@@ -4,6 +4,7 @@
 import shutil, os, arcpy
 from datetime import datetime
 from arcgis.gis import GIS
+import pandas as pd
 
 def AddHUCNames(outputfc, hucFC, output_hucID_field_name = 'HUC12', hucID_field_name = 'huc12', hucName_field_name='name'):
 

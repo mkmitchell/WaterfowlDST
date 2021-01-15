@@ -126,7 +126,7 @@ def main(argv):
       sys.exit(2)
    aoi = os.path.join(geodatabase,args.aoi[0])
    aoiname = args.aoi[0]
-   outputFolder = os.path.join(workspace, args.aoi[0], 'outout')
+   outputFolder = os.path.join(workspace, args.aoi[0], 'output')
    if not (os.path.exists(os.path.join(workspace, args.aoi[0]))):
       print('Creating project folder: ', os.path.join(os.path.join(workspace, args.aoi[0])))
       os.mkdir(os.path.join(workspace, args.aoi[0]))
@@ -276,15 +276,13 @@ def main(argv):
    mergebin.append(dst.protectedEnergy) #Protected energy
    mergebin.append(habpct) #Habitat proportions
    #print(mergebin)
-   outData = dst.dstOutout(mergebin, [dst.binUnique], outputgdb)
-
+   outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
    if debug[5]: #Data check
       print('\n#### Checking data ####')
       arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="avalNrgy SUM, LTADemand SUM, LTADUD SUM")
       arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
       arcpy.Statistics_analysis(in_table=dst.demand, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM, LTADUD SUM")
-
-
+   
    waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
    waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
 
