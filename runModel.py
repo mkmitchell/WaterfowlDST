@@ -271,17 +271,19 @@ def main(argv):
       habpct = os.path.join(dst.scratch,'aggByFieldenergydemand')
 
    print('\n#### Merging all the data for output ####')
-   mergebin.append(dst.unionEnergy(wetbin, demandbin)) #Energy supply and demand
-   mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
-   mergebin.append(dst.protectedEnergy) #Protected energy
-   mergebin.append(habpct) #Habitat proportions
+   #mergebin.append(dst.unionEnergy(wetbin, demandbin)) #Energy supply and demand
+   #mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
+   #mergebin.append(dst.protectedEnergy) #Protected energy
+   #mergebin.append(habpct) #Habitat proportions
    #print(mergebin)
-   outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
+   #outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
+   outData = os.path.join(outputgdb, dst.aoiname+'_Output')
+   print(outData)
    if debug[5]: #Data check
       print('\n#### Checking data ####')
-      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="avalNrgy SUM, LTADemand SUM, LTADUD SUM")
+      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="THabNrg SUM; TLTADmnd SUM; TLTADUD SUM")
       arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
-      arcpy.Statistics_analysis(in_table=dst.demand, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM, LTADUD SUM")
+      arcpy.Statistics_analysis(in_table=dst.demand, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM; LTADUD SUM")
    
    for checkStats in [os.path.join(dst.scratch, 'outputStats'), os.path.join(dst.scratch, 'mergedEnergyStats'),os.path.join(dst.scratch, 'demandStats')]:
       outStats = arcpy.da.TableToNumPyArray(checkStats, ('*'))
@@ -290,9 +292,9 @@ def main(argv):
    waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
    try:
       waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
-   except:
-      continue
->>>>>>> master
+   except Exception as e:
+      print(e)
+      
    print(time.clock() - startT)
    print('\nComplete')
    print('#####################################\n')
