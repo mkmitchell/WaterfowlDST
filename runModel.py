@@ -70,7 +70,7 @@ def main(argv):
    parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
    parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column name")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
-   parser.add_argument('--debug', '-z', nargs=5, type=int,default=[], help="Run specific sections of code.  1 or 0.  Energy supply, Energy demand, protected lands, habitat proportion")
+   parser.add_argument('--debug', '-z', nargs=6, type=int,default=[], help="Run specific sections of code.  1 or 0.  Energy supply, Energy demand, protected lands, habitat proportion, weighted mean, data check")
    
    # parse the command line
    args = parser.parse_args()
@@ -156,7 +156,7 @@ def main(argv):
    if args.debug:
       debug = args.debug
    else:
-      debug = [1, 1, 1, 1, 1]
+      debug = [1, 1, 1, 1, 1, 1]
        
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
@@ -271,17 +271,30 @@ def main(argv):
       habpct = os.path.join(dst.scratch,'aggByFieldenergydemand')
 
    print('\n#### Merging all the data for output ####')
-   mergebin.append(dst.unionEnergy(wetbin, demandbin)) #Energy supply and demand
-   mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
-   mergebin.append(dst.protectedEnergy) #Protected energy
-   mergebin.append(habpct) #Habitat proportions
+   #mergebin.append(dst.unionEnergy(wetbin, demandbin)) #Energy supply and demand
+   #mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
+   #mergebin.append(dst.protectedEnergy) #Protected energy
+   #mergebin.append(habpct) #Habitat proportions
    #print(mergebin)
-   outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
+   #outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
+   outData = os.path.join(outputgdb, dst.aoiname+'_Output')
+   print(outData)
+   if debug[5]: #Data check
+      print('\n#### Checking data ####')
+      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="THabNrg SUM; TLTADmnd SUM; TLTADUD SUM")
+      arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
+      arcpy.Statistics_analysis(in_table=dst.demand, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM; LTADUD SUM")
+   
+   for checkStats in [os.path.join(dst.scratch, 'outputStats'), os.path.join(dst.scratch, 'mergedEnergyStats'),os.path.join(dst.scratch, 'demandStats')]:
+      outStats = arcpy.da.TableToNumPyArray(checkStats, ('*'))
+      print(outStats)
+
    waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
    try:
       waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
-   except:
-      continue
+   except Exception as e:
+      print(e)
+      
    print(time.clock() - startT)
    print('\nComplete')
    print('#####################################\n')
