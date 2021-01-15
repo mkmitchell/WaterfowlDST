@@ -271,13 +271,13 @@ def main(argv):
       habpct = os.path.join(dst.scratch,'aggByFieldenergydemand')
 
    print('\n#### Merging all the data for output ####')
-   #mergebin.append(dst.unionEnergy(wetbin, demandbin)) #Energy supply and demand
-   #mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
-   #mergebin.append(dst.protectedEnergy) #Protected energy
-   #mergebin.append(habpct) #Habitat proportions
+   mergebin.append(dst.unionEnergy(wetbin, demandbin)) #Energy supply and demand
+   mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
+   mergebin.append(dst.protectedEnergy) #Protected energy
+   mergebin.append(habpct) #Habitat proportions
    #print(mergebin)
-   #outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
-   outData = os.path.join(outputgdb, dst.aoiname+'_Output')
+   outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
+   #outData = os.path.join(outputgdb, dst.aoiname+'_Output')
    print(outData)
    if debug[5]: #Data check
       print('\n#### Checking data ####')
