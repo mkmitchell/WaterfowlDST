@@ -114,7 +114,7 @@ def main(argv):
       if len(args.extra)%2 != 0:
          print("Number of extra habitat datasets does not equal crossover tables")
       else:
-         print('Extra datasets')
+         #print('Extra datasets')
          extra = {i:[os.path.join(geodatabase,args.extra[i]), os.path.join(workspace,args.extra[i + 1])] for i in range(0, len(args.extra), 2)}
    binIt = os.path.join(geodatabase,args.binIt[0])
    if not arcpy.Exists(binIt):
@@ -135,21 +135,17 @@ def main(argv):
       arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
       arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')
    else:
-      print("Project folder already exists.  Using it")
+      #print("Project folder already exists.  Using it")
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
       outputgdb = os.path.join(workspace, args.aoi[0], 'output', args.aoi[0] + "_output.gdb")
       if not (os.path.exists(scratchgdb)):
          print('Creating scratch geodatabase: ', scratchgdb)
          arcpy.CreateFileGDB_management(scratchgdb)
-      else:
-         print("Scratch GDB already exists.  Using it")
       if not os.path.exists(outputFolder):
          os.mkdir(outputFolder)
       if not (os.path.exists(outputgdb)):
          print('Creating output geodatabase: ', outputgdb)
-         arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')
-      else:
-         print("Output GDB already exists.  Using it")               
+         arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')          
    if not (arcpy.Exists(aoi)):
             print("aoi layer doesn't exist.")
             sys.exit(2)

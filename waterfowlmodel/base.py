@@ -71,7 +71,7 @@ class Waterfowlmodel:
         arcpy.Project_management(inFeature, outfc, arcpy.SpatialReference(102003))
         return outfc
       else:
-        print('\tAlready projected to', outfc)
+        logging.info('\tAlready projected to ' + outfc)
         return outfc        
     else:
       print('\tSpatial reference good')
@@ -88,7 +88,7 @@ class Waterfowlmodel:
     :return outfc: Location of selected bins feature dataset
     :rtype outfc: str
     """
-    print('\tSelecting bins')
+    logging.info('\tSelecting bins')
     slt = arcpy.SelectLayerByLocation_management(bins, "intersect", aoi)
     arcpy.CopyFeatures_management(slt ,os.path.join(self.scratch, 'selectedBin'))
     self.aoi = os.path.join(self.scratch, 'selectedBin')
@@ -107,7 +107,7 @@ class Waterfowlmodel:
     """
     outfc = os.path.join(self.scratch, cat + 'clip')
     if arcpy.Exists(outfc):
-      print('\tAlready have {} clipped with aoi'.format(cat))
+      #print('\tAlready have {} clipped with aoi'.format(cat))
       logging.info('Already have {} clipped with aoi'.format(cat))
     else:
       print('\tClipping {}'.format(cat + ' layer: ' + inFeature + ' to ' + outfc))
@@ -206,7 +206,7 @@ class Waterfowlmodel:
     """    
     #Delete Wetland area from each extra dataset
     if arcpy.Exists(mergedenergy):
-      print('\tAlready joined habitat supply')
+      logging.info('\tAlready joined habitat supply')
       return mergedenergy
     erased = [wetland]
     for i in extra.keys():
@@ -396,7 +396,7 @@ class Waterfowlmodel:
       aggToOut = os.path.join(scratch, 'aggTo' + cat)
       # Process: Make Feature Layer
       if arcpy.Exists(aggToOut):
-        print('\tAlready dissolved and aggregated everything for ' + cat)
+        logging.info('\tAlready dissolved and aggregated everything for ' + cat)
         return aggToOut
       else:
         arcpy.MakeFeatureLayer_management(in_features=aggData, out_layer=outLayer,field_info=FieldsToAgg)
