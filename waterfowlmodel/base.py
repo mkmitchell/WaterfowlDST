@@ -5,7 +5,6 @@ Defines Waterfowlmodel class which is used for storing parameters and doing calc
 """
 import os, sys, getopt, datetime, logging, arcpy, json, csv, re
 from arcpy import env
-import waterfowlmodel.SpatialJoinLargestOverlap as overlap
 import pandas as pd
 import numpy as np
 from arcgis.features import FeatureLayer, GeoAccessor
@@ -559,10 +558,16 @@ class Waterfowlmodel:
     df['avalNrgy'] = df['avalNrgy'].fillna(0)
     df['CalcHA'] = df['CalcHA'].fillna(0)
     df['kcal'] = df['kcal'].fillna(0)
-    wtmean = (df.groupby(['HUC12', 'CLASS'])['avalNrgy'].sum() / df.groupby(['HUC12', 'CLASS'])['kcal'].mean()).groupby('HUC12').sum()
+    hucsum = pd.DataFrame(df.groupby(['HUC12'])['avalNrgy'].sum())
+    hucclasssum = pd.DataFrame(df.groupby(['HUC12', 'CLASS'])['avalNrgy'].sum())
+    calc = hucclasssum.join(hucsum, lsuffix='_main', rsuffix='_sum')
+    calc['pct'] = calc['avalNrgy_main']/calc['avalNrgy_sum']
+    dfclass = pd.DataFrame(df.groupby(['HUC12', 'CLASS'])['kcal'].mean())
+    merge = pd.merge(dfclass, calc, on=['HUC12', 'CLASS'])
+    merge['wtmean'] = merge['kcal'] * merge['pct']
+    wtmean = merge.groupby(['HUC12'])['wtmean'].sum()
     wtmean = wtmean.reset_index()
     wtmean.columns = ['HUC12', 'wtmean']
-    #print(wtmean.head())
     outnp = np.rec.fromrecords(wtmean.values, names=wtmean.columns.tolist())
     if arcpy.Exists(os.path.join(self.scratch, 'HUCwtMean')):
       arcpy.Delete_management(os.path.join(self.scratch, 'HUCwtMean'))

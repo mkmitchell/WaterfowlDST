@@ -185,14 +185,15 @@ def main(argv):
    printlog('\tDebugging', ' '.join(map(str, list(debug))))
    print('#####################################\n')
 
-   startT = time.clock()
+   startT = time.perf_counter()
    print('\n#### Create waterfowl object ####')
    dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, binUnique, extra, scratchgdb)
+   logging.info('Wetland layer '.join(map(str, list(dst.__dict__))))
    #print(time.clock() - startT)
    #print('\nWaterfowl object data')
    #print('#####################################')
    #printlog('Wetland layer', ' '.join(map(str, list(dst.__dict__))))
-   startT = time.clock()
+   #startT = time.clock()
    if debug[0]: #Energy supply
       print('\n#### ENERGY SUPPLY ####')
       print('Wetland crossclass')
@@ -295,7 +296,7 @@ def main(argv):
    except Exception as e:
       print(e)
       
-   print(time.clock() - startT)
+   print(time.perf_counter() - startT)
    print('\nComplete')
    print('#####################################\n')
 
