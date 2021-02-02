@@ -14,11 +14,38 @@ print("Successfully logged in as: " + gis.properties.user.username)
 #gis=GIS("pro")
 #print("Successfully logged in as: " + gis.properties.user.username)
 
-  def getNCED(self, itemID = 'e5117faf3ecc472c9b5d3392711a7ccf'):
-      item = gis.content.get(itemID)
-      result=extract_data(item.layers, output_name='NCED', data_format='FILEGEODATABASE')
+  def getNCED(self, itemID = 'e5117faf3ecc472c9b5d3392711a7ccf', exportFolder, cat):
+    """
+    Downloads NCED as a zipped gdb from the Ducks Unlimited's internal GIS portal,
+    and unzips it. Modified from https://community.esri.com/t5/arcgis-api-for-python-questions/can-someone-help-me-fix-this-automated-download-script/m-p/839999
 
-      return result
+    :param itemID: NCED's item ID number in DU's GIS portal.
+    :type itemID: str
+    :param cat: Feature category
+    :type cat: str
+    :exportFolder: the folder in which the geodatabase will be downloaded.
+    :type exportFolder: file location
+    """ 
+
+    # get NCED from the DU portal
+    item = gis.content.get(itemID)
+    # Export hosted feature service to FGD, and downlaod
+    export_name = "export_" + item.title
+    result_item = item.export(export_name, 'File Geodatabase', wait=True)
+    print("Exported: {}".format(result_item))
+    download_result = result_item.download(exportFolder)
+    print("Saved to: {}".format(download_result))
+    result_item.delete()
+    print("Deleted result")
+
+    # Extract zip file
+    with ZipFile(download_result, 'r') as zipObj:
+      # Extract all the contents of zip file in current directory
+      zipObj.extractall(exportFolder)
+      print("Unzipped {0}".format(download_result))
+
+    # return polygon feature
+    
   
   def flattenLayer(self, inFeature, scratchgdb, cat):
     """
