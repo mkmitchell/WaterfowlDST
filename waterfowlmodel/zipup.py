@@ -42,6 +42,7 @@ def AddHUCNames(outputfc, hucFC, output_hucID_field_name = 'HUC12', hucID_field_
             elif not row[1] and row[0] not in sdfDict:
                 row[1] = row[0]
             cursor.updateRow(row)
+    del cursor, row
 
 
 

@@ -9,6 +9,7 @@ import waterfowlmodel.base as waterfowl
 import waterfowlmodel.dataset
 import waterfowlmodel.publicland
 import waterfowlmodel.zipup
+import numpy as np
 
 def printlog(txt, var):
    print(txt + ':', var)
@@ -40,7 +41,7 @@ def main(argv):
    :type binUnique: str   
    :param aoi: Area of interest shapefile
    :type aoi: str
-   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, protected lands, habitat proportion, weighted mean]
+   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, protected lands, habitat proportion, weighted mean, data check, zip it]
    :type debug: str   
    """
    aoi = ''
@@ -70,7 +71,7 @@ def main(argv):
    parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
    parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column name")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
-   parser.add_argument('--debug', '-z', nargs=6, type=int,default=[], help="Run specific sections of code.  1 or 0.  Energy supply, Energy demand, protected lands, habitat proportion, weighted mean, data check")
+   parser.add_argument('--debug', '-z', nargs=7, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, protected lands, habitat proportion, weighted mean, data check, zip]")
    
    # parse the command line
    args = parser.parse_args()
@@ -152,7 +153,7 @@ def main(argv):
    if args.debug:
       debug = args.debug
    else:
-      debug = [1, 1, 1, 1, 1, 1]
+      debug = [1, 1, 1, 1, 1, 1, 1]
        
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
@@ -173,23 +174,18 @@ def main(argv):
    printlog('\tEnergy demand layer', demand.inData)
    printlog('\tBin layer', binIt)
    printlog('\tBin unique', binUnique)
-   printlog('\tExtra datasets', ' '.join(map(str, list(extra))))
+   printlog('\tExtra datasets', str(int(len(args.extra)/2)))
    printlog('\tBin layer', binIt)
    printlog('\tRegion of interest', aoi)
    printlog('\tScratch gdb', scratchgdb)
    printlog('\tOutput gdb', outputgdb)
    printlog('\tDebugging', ' '.join(map(str, list(debug))))
-   print('#####################################\n')
+   print('#####################################')
 
    startT = time.perf_counter()
    print('\n#### Create waterfowl object ####')
    dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, binUnique, extra, scratchgdb)
    logging.info('Wetland layer '.join(map(str, list(dst.__dict__))))
-   #print(time.clock() - startT)
-   #print('\nWaterfowl object data')
-   #print('#####################################')
-   #printlog('Wetland layer', ' '.join(map(str, list(dst.__dict__))))
-   #startT = time.clock()
    if debug[0]: #Energy supply
       print('\n#### ENERGY SUPPLY ####')
       print('Wetland crossclass')
@@ -199,29 +195,31 @@ def main(argv):
       print('Impoundments crossclass')
       dst.crossClass(dst.extra[1][0], dst.extra[1][1])
       print('Join supply habitats')
-      allEnergy = dst.joinEnergy(dst.wetland, dst.extra, dst.mergedenergy)
+      dst.mergedenergy = dst.joinEnergy(dst.wetland, dst.extra, dst.mergedenergy)
       print('Prep supply Energy')
-      allEnergy = dst.prepEnergyFast(allEnergy, dst.kcalTbl)
-      allEnergy = dst.mergedenergy
+      dst.mergedenergy = dst.prepEnergyFast(dst.mergedenergy, dst.kcalTbl)
       print('Merge supply Energy')
-      dst.mergedenergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=allEnergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
-      wetbin = dst.aggproportion(dst.binIt, allEnergy, "OBJECTID", ["avalNrgy", "CalcHA"], [dst.binUnique], dst.scratch, "supplyenergy")
-      if not len(arcpy.ListFields(wetbin,'THabNrg'))>0:
-         arcpy.AlterField_management(wetbin, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
-      if not len(arcpy.ListFields(wetbin,'THabHA'))>0:
-         arcpy.AlterField_management(wetbin, 'SUM_CalcHA', 'THabHA', 'TotalHabitatHA')
+      allEnergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.mergedenergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
+      arcpy.CopyFeatures_management(allEnergy, dst.mergedenergy + 'Selection')
+      dst.mergeenergy = dst.mergedenergy + 'Selection'
+      dst.energysupply = dst.aggproportion(dst.binIt, dst.mergedenergy, "OBJECTID", ["avalNrgy", "CalcHA"], [dst.binUnique], dst.scratch, "supplyenergy")
+      if not len(arcpy.ListFields(dst.energysupply,'THabNrg'))>0:
+         arcpy.AlterField_management(dst.energysupply, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
+      if not len(arcpy.ListFields(dst.energysupply,'THabHA'))>0:
+         arcpy.AlterField_management(dst.energysupply, 'SUM_CalcHA', 'THabHA', 'TotalHabitatHA')
    else:
-      wetbin = os.path.join(dst.scratch, 'aggtosupplyenergy')
+      dst.energysupply = os.path.join(dst.scratch, 'aggtosupplyenergy')
 
    if debug[1]: #Energy demand
       print('\n#### ENERGY DEMAND ####')
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
       arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
-      dst.demand = os.path.join(dst.scratch, 'EnergyDemandSelected')
-      mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
-      demandbin = dst.aggByField(mergedAll, dst.scratch, 'energydemand')
+      demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
+      mergedAll = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
+      dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
    else:
-      demandbin = os.path.join(dst.scratch, 'aggByFieldenergydemand')
+      demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
+      dst.demand = os.path.join(dst.scratch, 'aggByFieldenergydemanddissolveHUC')
 
    if debug[2]: #Public lands
       print('\n#### PUBLIC LANDS ####')
@@ -256,44 +254,48 @@ def main(argv):
       if not debug[1]:
          mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
       habpct = dst.pctHabitatType()
-   else:
-      habpct = os.path.join(dst.scratch,'aggByFieldenergydemand')
 
-   if debug[4]: #Weighted mean
-      print('\n#### HABITAT WEIGHTED MEAN ####')
-      if not debug[1]:
-         mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
-      habpct = dst.weightedMean()
-   else:
-      habpct = os.path.join(dst.scratch,'aggByFieldenergydemand')
+   print('\n#### HABITAT WEIGHTED MEAN ####')
+   if not debug[1]:
+      mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
+   wtmean = dst.weightedMean()
 
    print('\n#### Merging all the data for output ####')
-   mergebin.append(dst.unionEnergy(wetbin, demandbin)) #Energy supply and demand
+   arcpy.CopyFeatures_management(dst.demand ,os.path.join(dst.scratch, 'CHECKDEMAND'))
+   mergebin.append(dst.unionEnergy(dst.energysupply, dst.demand)) #Energy supply and demand
    mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
    mergebin.append(dst.protectedEnergy) #Protected energy
-   mergebin.append(habpct) #Habitat proportions
-   #print(mergebin)
+   #mergebin.append(habpct) #Habitat proportions
    outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
    #outData = os.path.join(outputgdb, dst.aoiname+'_Output')
-   print(outData)
-   if debug[5]: #Data check
-      print('\n#### Checking data ####')
-      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="THabNrg SUM; TLTADmnd SUM; TLTADUD SUM")
-      arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
-      arcpy.Statistics_analysis(in_table=dst.demand, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM; LTADUD SUM")
-   
-   for checkStats in [os.path.join(dst.scratch, 'outputStats'), os.path.join(dst.scratch, 'mergedEnergyStats'),os.path.join(dst.scratch, 'demandStats')]:
-      outStats = arcpy.da.TableToNumPyArray(checkStats, ('*'))
-      print(outStats)
 
-   waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
-   try:
-      waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
-   except Exception as e:
-      print(e)
+   if debug[5]: #Data check
+      np.set_printoptions(suppress=True)
+      print('\n#### Checking data ####')
+      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="THabNrg SUM; TLTADemand SUM; TLTADUD SUM")
+      arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
+      arcpy.Statistics_analysis(in_table=demandSelected, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM; LTADUD SUM")
+      outputStats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'outputStats'), ['SUM_THabNrg', 'SUM_TLTADemand', 'SUM_TLTADUD'])
+      inenergystats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'mergedEnergyStats'), ['SUM_avalNrgy'])
+      indemandstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'demandStats'), ['SUM_LTADemand', 'SUM_LTADUD'])
+      print('Output energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
+      print('Energy difference %: {}'.format((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100))
+      print('\nOutput demand: {}\nInput demand: {}'.format(outputStats[0][1], indemandstats[0][0]))
+      print('Demand  difference %: {}'.format((outputStats[0][1] - indemandstats[0][0])/(outputStats[0][1] + indemandstats[0][0])*100))
+      print('\nOutput DUD: {}\nInput DUD: {}'.format(outputStats[0][2], indemandstats[0][1]))
+      print('DUD  difference %: {}'.format((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100))
+   
+   if debug[6]: #Zip it
+      print('\n#### Zipping up data ####')
+      waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
+      arcpy.ClearWorkspaceCache_management()
+      try:
+         waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
+      except Exception as e:
+         print(e)
       
-   print(time.perf_counter() - startT)
-   print('\nComplete')
+
+   print('\nCompleted in {}'.format(time.perf_counter() - startT))
    print('#####################################\n')
 
 if __name__ == "__main__":
