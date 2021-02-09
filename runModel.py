@@ -226,7 +226,7 @@ def main(argv):
       nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
       padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
       print('Public lands ready. Analyzing')
-      dst.prepProtected(nced.land, padus.land)
+      dst.prepProtected([nced.land, padus.land])
       protectedbin = dst.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "protectedbin")
       if not len(arcpy.ListFields(protectedbin,'ProtHA'))>0:
          if len(arcpy.ListFields(protectedbin,'SUM_CalcHA'))>0:

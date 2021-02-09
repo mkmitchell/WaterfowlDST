@@ -329,7 +329,7 @@ class Waterfowlmodel:
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'RstorHA', "DOUBLE", 9, 2, "", "Restoration HA based off weighted mean (Surplus/weighted mean)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='RstorHA', expression="abs(!SurpDef!/!wtMeankcal!) if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'RstorProtHA', "DOUBLE", 9, 2, "", "Protection HA based off weighted mean (Energy protected needed/weighted mean)")
-    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='RstorProtHA', expression="(!NrgProtRq!/!wtMeankcal!) if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")    
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='RstorProtHA', expression="(!NrgProtRq!/!wtMeankcal!) if !NrgProtRq! > 0 else 0", expression_type="PYTHON_9.3", code_block="")    
     #for field in self.kcalList:
       #arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MEAN_'+field, field, field + 'Percentage')
       #arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field=field, expression="abs(!SurpDef!) * !"+field+"! if !SurpDef! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
@@ -470,19 +470,16 @@ class Waterfowlmodel:
       arcpy.CalculateField_management(in_table=self.protectedEnergy, field="CalcHA", expression="!shape.area@hectares!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=self.protectedEnergy, field="avalNrgy", expression="!CalcHA!* !kcal!", expression_type="PYTHON_9.3", code_block="")
 
-  def prepProtected(self, nced, padus):
+  def prepProtected(self, protlist):
     """
-    Prepares protected lands by merging nced and padus by deleting NCED from PAD and running a union.
+    Prepares protected lands by merging protected features in the passed list.
 
-    :param nced: NCED feature class
-    :type nced: str
-    :param padus: PADUS feature class
-    :type padus: str
+    :param protlist: Protected feature classes
+    :type protlist: list
     """
-    if not arcpy.Exists(os.path.join(self.scratch, 'delncedfrompad')):
-      arcpy.Erase_analysis(padus, nced, os.path.join(self.scratch, 'delncedfrompad'))
     if not arcpy.Exists(self.protectedMerge):
-      arcpy.Merge_management([nced, os.path.join(self.scratch, 'delncedfrompad')], self.protectedMerge)
+      arcpy.analysis.Union(protlist, os.path.join(self.scratch, 'protunion'), "ALL", None, "GAPS")
+      arcpy.management.Dissolve(os.path.join(self.scratch, 'protunion'), self.protectedMerge, None, None, "MULTI_PART", "DISSOLVE_LINES")
     if not len(arcpy.ListFields(self.protectedMerge,'CalcHA'))>0:
         arcpy.AddField_management(self.protectedMerge, 'CalcHA', "DOUBLE", 9, 2, "", "GIS Hectares") 
     arcpy.CalculateGeometryAttributes_management(self.protectedMerge, "CalcHA AREA", area_unit="HECTARES")      
