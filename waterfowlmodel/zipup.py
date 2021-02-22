@@ -1,5 +1,9 @@
+"""
+Module zipUp
+================
+Add the HUC names and zip the geodatabase.
+"""
 # FUNCTION TO Add the HUC names and ZIP UP THE GEODATABASE. Might need to be massaged. Jes Skillman 12/14/2020, Python 3.x
-
 # import modules
 import shutil, os, arcpy
 from datetime import datetime

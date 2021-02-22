@@ -70,13 +70,14 @@ def main(argv):
    parser.add_argument('--extra', '-e', nargs="*", type=str, default=[], help="Extra habitat datasets in format: full path to dataset 1, full path to crosswalk 1, full path to dataset 2, full path to crosswalk")
    parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
    parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column name")
+   parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
    parser.add_argument('--debug', '-z', nargs=7, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, protected lands, habitat proportion, weighted mean, data check, zip]")
    
    # parse the command line
    args = parser.parse_args()
    print(args)
-   if len(argv) < 8:
+   if len(argv) < 12:
       parser.print_help()
       sys.exit(2)    
    workspace = args.workspace[0]
@@ -125,6 +126,10 @@ def main(argv):
    if not len(arcpy.ListFields(binIt,binUnique))>0:
       print("AOI field doesn't have the unique identifier.")
       sys.exit(2)
+   urban = os.path.join(geodatabase,args.urban[0])
+   if not arcpy.Exists(urban):
+      print("Urban layer doesn't exist.")
+      sys.exit(2)      
    aoi = os.path.join(geodatabase,args.aoi[0])
    aoiname = args.aoi[0]
    outputFolder = os.path.join(workspace, args.aoi[0], 'output')
@@ -158,6 +163,7 @@ def main(argv):
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
    demand = waterfowlmodel.dataset.Dataset(demand, scratchgdb)
+   urban = waterfowlmodel.dataset.Dataset(urban, scratchgdb)
    padus = waterfowlmodel.dataset.Dataset(padus, scratchgdb)
    nced = waterfowlmodel.dataset.Dataset(nced, scratchgdb)
    
@@ -172,6 +178,7 @@ def main(argv):
    printlog('\tGeodatabase', geodatabase)
    printlog('\tEnergy Supply table', kcalTable)
    printlog('\tEnergy demand layer', demand.inData)
+   printlog('\tUrban layer', urban.inData)
    printlog('\tBin layer', binIt)
    printlog('\tBin unique', binUnique)
    printlog('\tExtra datasets', str(int(len(args.extra)/2)))
@@ -184,18 +191,20 @@ def main(argv):
 
    startT = time.perf_counter()
    print('\n#### Create waterfowl object ####')
-   dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, binIt, binUnique, extra, scratchgdb)
+   dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, urban.inData, binIt, binUnique, extra, scratchgdb)
    logging.info('Wetland layer '.join(map(str, list(dst.__dict__))))
    if debug[0]: #Energy supply
       print('\n#### ENERGY SUPPLY ####')
       print('Wetland crossclass')
-      dst.crossClass(dst.wetland, dst.crossTbl, 'ATTRIBUTE')
-      print('Marsh crossclass')
-      dst.crossClass(dst.extra[0][0], dst.extra[0][1], 'frmCLS')
-      print('Impoundments crossclass')
-      dst.crossClass(dst.extra[1][0], dst.extra[1][1])
+      dst.crossClass(dst.wetland, dst.crossTbl)
+      print(dst.extra.keys())
+      for i in dst.extra.keys():
+         dst.crossClass(dst.extra[i][0], dst.extra[i][1])
       print('Join supply habitats')
-      dst.mergedenergy = dst.joinEnergy(dst.wetland, dst.extra, dst.mergedenergy)
+      if int(len(args.extra)/2) > 0:
+         dst.mergedenergy = dst.joinEnergy(dst.wetland, dst.extra, dst.mergedenergy)
+      else:
+         dst.mergedenergy = dst.wetland
       print('Prep supply Energy')
       dst.mergedenergy = dst.prepEnergyFast(dst.mergedenergy, dst.kcalTbl)
       print('Merge supply Energy')
@@ -260,14 +269,21 @@ def main(argv):
       mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
    wtmean = dst.weightedMean()
 
+   print('\n#### Calculate available HA ####')
+   if not len(arcpy.ListFields(dst.urban,'CalcHA'))>0:
+      arcpy.AddField_management(dst.urban, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
+   arcpy.CalculateGeometryAttributes_management(dst.urban, "CalcHA AREA", area_unit="HECTARES")
+   dst.urban = dst.aggproportion(dst.binIt, dst.urban, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "urban")
+   if len(arcpy.ListFields(dst.urban,'SUM_CalcHA'))>0:
+      arcpy.AlterField_management(dst.urban, 'SUM_CalcHA', 'UrbanHA', 'Urban Hectares')
+
    print('\n#### Merging all the data for output ####')
    arcpy.CopyFeatures_management(dst.demand ,os.path.join(dst.scratch, 'CHECKDEMAND'))
    mergebin.append(dst.unionEnergy(dst.energysupply, dst.demand)) #Energy supply and demand
    mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
    mergebin.append(dst.protectedEnergy) #Protected energy
-   #mergebin.append(habpct) #Habitat proportions
+   mergebin.append(dst.urban) #Urban - available HA
    outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
-   #outData = os.path.join(outputgdb, dst.aoiname+'_Output')
 
    if debug[5]: #Data check
       np.set_printoptions(suppress=True)
@@ -279,11 +295,11 @@ def main(argv):
       inenergystats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'mergedEnergyStats'), ['SUM_avalNrgy'])
       indemandstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'demandStats'), ['SUM_LTADemand', 'SUM_LTADUD'])
       print('Output energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
-      print('Energy difference %: {}'.format((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100))
+      print('Energy difference %: {}'.format(int((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100)))
       print('\nOutput demand: {}\nInput demand: {}'.format(outputStats[0][1], indemandstats[0][0]))
-      print('Demand  difference %: {}'.format((outputStats[0][1] - indemandstats[0][0])/(outputStats[0][1] + indemandstats[0][0])*100))
+      print('Demand  difference %: {}'.format(int((outputStats[0][1] - indemandstats[0][0])/(outputStats[0][1] + indemandstats[0][0])*100)))
       print('\nOutput DUD: {}\nInput DUD: {}'.format(outputStats[0][2], indemandstats[0][1]))
-      print('DUD  difference %: {}'.format((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100))
+      print('DUD  difference %: {}'.format(int((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100)))
    
    if debug[6]: #Zip it
       print('\n#### Zipping up data ####')
