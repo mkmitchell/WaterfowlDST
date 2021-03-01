@@ -18,8 +18,8 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'ABDU DST'
-copyright = '2019, Ducks Unlimited'
+project = 'American Black Duck Habitat Priorities'
+copyright = '2020, Ducks Unlimited'
 author = 'Ducks Unlimited'
 
 # The full version, including alpha/beta/rc tags
