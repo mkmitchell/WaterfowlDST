@@ -221,11 +221,27 @@ def main(argv):
 
    if debug[1]: #Energy demand
       print('\n#### ENERGY DEMAND ####')
+      # 1. Get list of unique values in species layer that we'll be summarizing
+      # 2. loop through list, run all calculations.
+      # 3. Output into one layer?
+      sppList=['All', 'MALL', 'WODU', 'AMWI', 'GADW', 'NOPI', 'NSHO', 'ABDU', 'BWTE', 'AGWT']
+      for sp in sppList:
+        selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
+        if arcpy.management.GetCount(selectDemand)[0] > "0":
+            arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected_{}'.format(sp)))
+            demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected_{}'.format(sp))
+            mergedAll = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
+            dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand_{}'.format(sp))
+        elif arcpy.management.GetCount(selectDemand)[0] == "0":
+            print('No records with {} species. Not calculated'.format(sp))
+
+      """ OLD SECTION
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
       arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
       demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
       mergedAll = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
       dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
+      """
    else:
       demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
       dst.demand = os.path.join(dst.scratch, 'aggByFieldenergydemanddissolveHUC')
