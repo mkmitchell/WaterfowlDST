@@ -243,37 +243,6 @@ class Waterfowlmodel:
             continue
     else:
       return
-
-  @report_time
-  def fastCrossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
-    """
-    Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.
-
-    :param inDataset: Feature to be updated with a new 'CLASS' field
-    :type inDataset: str
-    :param xTable: Location of csv or json file with two columns, original class and the class it's changing to
-    :type xTable: str
-    :param curclass: Field that lists current class within inDataset
-    :type curclass: str.
-    """
-    logging.info("Calculating habitat")
-    if int(arcpy.GetCount_management(inDataset)[0]) > 0:
-        file_extension = os.path.splitext(xTable)[-1].lower()
-        if file_extension == ".json":
-          dataDict = json.load(open(xTable))
-        else:
-          with open(xTable, mode='r') as infile:
-            reader = csv.reader(infile)
-            dataDict = {rows[0]:rows[1].split(',') for rows in reader}
-        print(inDataset)
-        # Convert to numpy and update 'CLASS' based on join between dataDict and numpy table
-        df = pd.DataFrame.spatial.from_featureclass(inDataset)
-        reversed_dict = {val: key for key in dataDict for val in dataDict[key]}
-        df['CLASS'] = df[curclass].map(reversed_dict)
-        df.spatial.to_featureclass(location=inDataset+'CLASS')
-        return inDataset+'CLASS'
-    else:
-        return
   
   @report_time
   def supaCrossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
@@ -290,12 +259,6 @@ class Waterfowlmodel:
       print('deleting index field')
       arcpy.DeleteField_management(inDataset, 'index')         
     arcpy.da.ExtendTable(inDataset, "OBJECTID", outnp, "OBJECTID")
-    #tmp = arcpy.SelectLayerByAttribute_management(in_layer_or_view=inDataset, selection_type="NEW_SELECTION", where_clause="OBJECTID < 10")
-    #print(arcpy.GetCount_management(tmp)[0])
-    #print(inDataset)
-    #arcpy.Copy_management(tmp, inDataset+'supafast')
-    #arcpy.TruncateTable_management(inDataset+'supafast')
-    #save_gdb_table(df, inDataset + 'supafast')
     return inDataset  
 
   def joinEnergy(self, wetland, extra, mergedenergy):
