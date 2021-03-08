@@ -42,7 +42,9 @@ def main(argv):
    :param aoi: Area of interest shapefile
    :type aoi: str
    :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, protected lands, habitat proportion, weighted mean, data check, zip it]
-   :type debug: str   
+   :type debug: str 
+   :param fieldTable: Table to standardize field names and aliases, this csv: ModelOutputFieldDictionary.csv
+   :type fieldTable: str
    """
    aoi = ''
    aoiname = ''
@@ -56,6 +58,7 @@ def main(argv):
    scratchgdb = ''
    outputgdb = ''
    outputFolder = ''
+   fieldTable = ''
    extra = {}
    mergebin = []
 
@@ -72,7 +75,8 @@ def main(argv):
    parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column name")
    parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
-   parser.add_argument('--debug', '-z', nargs=7, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, protected lands, habitat proportion, weighted mean, data check, zip]")
+   parser.add_argument('--fieldTable', '-a', nargs=1, type=str, default=[], help='Specify crosswalk to standardize field names and aliases.')
+   parser.add_argument('--debug', '-z', nargs=7, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Energy demand by species, protected lands, habitat proportion, weighted mean, data check, zip]")
    
    # parse the command line
    args = parser.parse_args()
@@ -118,6 +122,12 @@ def main(argv):
       else:
          #print('Extra datasets')
          extra = {i:[os.path.join(geodatabase,args.extra[i]), os.path.join(workspace,args.extra[i + 1])] for i in range(0, len(args.extra), 2)}
+   ### ---------------------------###
+   fieldTable = os.path.join(workspace, args.fieldTable[0])
+   if not os.path.isfile(fieldTable):
+      print("Field table doesn't exist.")
+      sys.exit(2)
+   ### -------------------------- ###
    binIt = os.path.join(geodatabase,args.binIt[0])
    if not arcpy.Exists(binIt):
       print("Aggregation layer doesn't exist.")
@@ -158,7 +168,7 @@ def main(argv):
    if args.debug:
       debug = args.debug
    else:
-      debug = [1, 1, 1, 1, 1, 1, 1]
+      debug = [1, 1, 1, 1, 1, 1, 1, 1]
        
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
@@ -178,6 +188,7 @@ def main(argv):
    printlog('\tGeodatabase', geodatabase)
    printlog('\tEnergy Supply table', kcalTable)
    printlog('\tEnergy demand layer', demand.inData)
+   printlog('\tStandardized Field Names', fieldTable.inData)
    printlog('\tUrban layer', urban.inData)
    printlog('\tBin layer', binIt)
    printlog('\tBin unique', binUnique)
@@ -211,6 +222,7 @@ def main(argv):
       allEnergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.mergedenergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
       arcpy.CopyFeatures_management(allEnergy, dst.mergedenergy + 'Selection')
       dst.mergeenergy = dst.mergedenergy + 'Selection'
+      # Right here .... I think we need to create an output summary table grouping by HUC and wetland type, summing ha and kcal
       dst.energysupply = dst.aggproportion(dst.binIt, dst.mergedenergy, "OBJECTID", ["avalNrgy", "CalcHA"], [dst.binUnique], dst.scratch, "supplyenergy")
       if not len(arcpy.ListFields(dst.energysupply,'THabNrg'))>0:
          arcpy.AlterField_management(dst.energysupply, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
@@ -220,33 +232,34 @@ def main(argv):
       dst.energysupply = os.path.join(dst.scratch, 'aggtosupplyenergy')
 
    if debug[1]: #Energy demand
-      print('\n#### ENERGY DEMAND ####')
-      # 1. Get list of unique values in species layer that we'll be summarizing
-      # 2. loop through list, run all calculations.
-      # 3. Output into one layer?
-      sppList=['All', 'MALL', 'WODU', 'AMWI', 'GADW', 'NOPI', 'NSHO', 'ABDU', 'BWTE', 'AGWT']
-      for sp in sppList:
-        selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
-        if arcpy.management.GetCount(selectDemand)[0] > "0":
-            arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected_{}'.format(sp)))
-            demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected_{}'.format(sp))
-            mergedAll = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
-            dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand_{}'.format(sp))
-        elif arcpy.management.GetCount(selectDemand)[0] == "0":
-            print('No records with {} species. Not calculated'.format(sp))
 
-      """ OLD SECTION
+      print('\n#### ENERGY DEMAND ####')
+
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
-      arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
-      demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
-      mergedAll = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
-      dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
-      """
+
+      if arcpy.management.GetCount(selectDemand)[0] > "0":
+         arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
+         demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
+         mergedAll = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
+         dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
+
+      elif arcpy.management.GetCount(selectDemand)[0] == "0":
+         print('No records with "All" species. Not calculated')
+
    else:
       demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
       dst.demand = os.path.join(dst.scratch, 'aggByFieldenergydemanddissolveHUC')
 
-   if debug[2]: #Public lands
+   if debug[2]: #SPECIES PROPORTIONS
+
+      print('\n#### ENERGY DEMAND BY SPECIES ####')
+      energyDemandBySpecies = summarizebySpecies(dst.demand, dst.scratch, dst.binIt, mergedAll, fieldtable)
+   
+   else: # NOT ENTIRELY SURE WHAT TO PUT HERE - JES...
+
+
+
+   if debug[3]: #Public lands
       print('\n#### PUBLIC LANDS ####')
       nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
       padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
@@ -274,7 +287,7 @@ def main(argv):
    else:
       dst.protectedEnergy = (os.path.join(dst.scratch, 'aggtoprotectedEnergy'))
    
-   if debug[3]: #Habitat percentage
+   if debug[4]: #Habitat percentage
       print('\n#### HABITAT PERCENTAGE ####')
       if not debug[1]:
          mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)

@@ -486,6 +486,64 @@ class Waterfowlmodel:
       print(exc_type, fname, exc_tb.tb_lineno)
       sys.exit()
 
+  def summarizebySpecies(demand, scratch, binIt, mergedAll, fieldtable):
+      """
+      Aggregates species specific energy demand on a smaller scale to multple larger scale features.  Example: County to HUC12.
+
+      :param demand: Energy demand layer
+      :type demand: str
+      :param scratch: Scratch geodatabase location
+      :type scratch: str  
+      :param binIt: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+      :type binIt: str
+      :param mergeAll: Merged energy returned from self.prepnpptables.
+      :type mergeAll: str
+      :fieldtable: ModelOutputFieldDictionary.csv, contains crosswalk from original field names to correct field names and aliases.
+      :return: Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply
+      :rtype:  str
+      """
+      
+      # list of feature classes that will be created.
+      speciesFCList = []
+      
+      # species list
+      speciesList = [f.upper() for f in fieldtable.species.unique() if f.upper()!='ALL']
+
+      # filter demand layer to only this species...
+      selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
+
+      # if records for this species exist...
+      if arcpy.management.GetCount(selectDemand)[0] > "0":
+          
+          # create a copy of the demand layer for this species
+          arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected_{}'.format(sp)))
+          demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected_{}'.format(sp))
+      
+          # aggregate by field for this species, call it energydemand_speciesabbreviation
+          demandbySpecies = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand_{}'.format(sp))
+          
+          # alter field names
+          dfSpecies = df[df['species'] == sp]
+      
+          for i, row in dfSpecies.iterrows():
+              if dfSpecies['original_field_name'] in [f.name for f in arcpy.ListFields(demandbySpecies)]:
+                  arcpy.AlterField_management(demandbySpecies,
+                                              field=dfSpecies['original_field_name'], 
+                                              new_field_name=dfSpecies['field_name'],
+                                              new_field_alias=dfSpecies['field_alias'])
+                  
+          # append new feature class name to list of species-level feature classes ...
+          speciesFCList.append(demandbySpecies)
+
+      elif arcpy.management.GetCount(selectDemand)[0] == "0":
+          print('No records with {} species. Not calculated'.format(sp))
+      
+      # merge species level information
+      energydemand_byspecies = os.path.join(dst.scratch, 'energydemand_byspecies')
+      arcpy.management.Merge(speciesFCList, energydemand_byspecies)
+      
+      return(energydemand_byspecies)
+
   def calcProtected(self):
     """
     Creates attribute for hectares of habitat and hectares of protected habitat
