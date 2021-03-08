@@ -5,6 +5,7 @@ Implementation of utilizing the Waterfowlmodel class to calculate energy demand,
 """
 
 import os, sys, getopt, datetime, logging, arcpy, argparse, time
+from functools import wraps
 import waterfowlmodel.base as waterfowl
 import waterfowlmodel.dataset
 import waterfowlmodel.publicland
@@ -15,6 +16,18 @@ def printlog(txt, var):
    print(txt + ':', var)
    logging.info(txt + ': ' + var)
 
+def report_time(func):
+    '''Decorator reporting the execution time'''
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        end = time.time()
+        print(func.__name__, round(end-start,3))
+        return result
+    return wrapper
+
+@report_time
 def main(argv):
    """
    Creates a waterfowl model object.
@@ -196,7 +209,7 @@ def main(argv):
    if debug[0]: #Energy supply
       print('\n#### ENERGY SUPPLY ####')
       print('Wetland crossclass')
-      dst.crossClass(dst.wetland, dst.crossTbl)
+      dst.wetland = dst.supaCrossClass(dst.wetland, dst.crossTbl)
       print(dst.extra.keys())
       for i in dst.extra.keys():
          dst.crossClass(dst.extra[i][0], dst.extra[i][1])
@@ -210,7 +223,7 @@ def main(argv):
       print('Merge supply Energy')
       allEnergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.mergedenergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
       arcpy.CopyFeatures_management(allEnergy, dst.mergedenergy + 'Selection')
-      dst.mergeenergy = dst.mergedenergy + 'Selection'
+      dst.mergedenergy = dst.mergedenergy + 'Selection'
       dst.energysupply = dst.aggproportion(dst.binIt, dst.mergedenergy, "OBJECTID", ["avalNrgy", "CalcHA"], [dst.binUnique], dst.scratch, "supplyenergy")
       if not len(arcpy.ListFields(dst.energysupply,'THabNrg'))>0:
          arcpy.AlterField_management(dst.energysupply, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')

@@ -3,11 +3,52 @@ Module Waterfowl
 ================
 Defines Waterfowlmodel class which is used for storing parameters and doing calculations for the waterfowl decision support tool.
 """
-import os, sys, getopt, datetime, logging, arcpy, json, csv, re
+import os, sys, getopt, datetime, logging, arcpy, json, csv, re, time
+from functools import wraps
 from arcpy import env
 import pandas as pd
 import numpy as np
 from arcgis.features import FeatureLayer, GeoAccessor
+
+def report_time(func):
+    '''Decorator reporting the execution time'''
+    @wraps(func)
+    def wrapper(*args, **kwargs):
+        start = time.time()
+        result = func(*args, **kwargs)
+        end = time.time()
+        print(func.__name__, round(end-start,3))
+        return result
+    return wrapper
+
+@report_time
+def make_df(in_table):
+    columns = [f.name for f in arcpy.ListFields(in_table)]
+    cur = arcpy.da.SearchCursor(in_table,columns)
+    rows = (row for row in cur)
+    df = pd.DataFrame(rows,columns=columns)
+    return df
+
+@report_time
+def calculate_field(df, inDataset, xTable, curclass):
+    if int(arcpy.GetCount_management(inDataset)[0]) > 0:
+        file_extension = os.path.splitext(xTable)[-1].lower()
+        if file_extension == ".json":
+          dataDict = json.load(open(xTable))
+        else:
+          with open(xTable, mode='r') as infile:
+            reader = csv.reader(infile)
+            dataDict = {rows[0]:rows[1].split(',') for rows in reader}
+        reversed_dict = {val: key.replace('_', '') for key in dataDict for val in dataDict[key]}
+        df['CLASS'] = df[curclass].map(reversed_dict)    
+    return df    
+
+@report_time
+def save_gdb_table(df,out_table):
+    rows_to_write = [tuple(r[1:]) for r in df.itertuples()]
+    with arcpy.da.InsertCursor(out_table,df.columns) as ins_cur:
+        for row in rows_to_write:
+            ins_cur.insertRow(row)
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
@@ -151,6 +192,7 @@ class Waterfowlmodel:
       a+=1
     return readyExtra
 
+  @report_time
   def crossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
     """
     Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.
@@ -182,22 +224,79 @@ class Waterfowlmodel:
       print(inDataset)
       with arcpy.da.UpdateCursor(inDataset, [curclass, 'CLASS']) as cursor:
         for row in cursor:
-          if row[1] is None or row[1].strip() == '':
-            for key, value in dataDict.items():
-              if row[0].replace(',', '') in value:
-                row[1] = key.replace('_', '')
-                try:
-                  cursor.updateRow(row)
-                except Exception as e:
-                  print(e)
-                  print(row[0])
-                  print(row[1])
-                  print(type(row[1]))
-                  sys.exit()
+          if row[0]:
+            if row[1] is None or row[1].strip() == '':
+              for key, value in dataDict.items():
+                if row[0].replace(',', '') in value:
+                  row[1] = key.replace('_', '')
+                  try:
+                    cursor.updateRow(row)
+                  except Exception as e:
+                    print(e)
+                    print(row[0])
+                    print(row[1])
+                    print(type(row[1]))
+                    sys.exit()
+            else:
+              continue
           else:
             continue
     else:
       return
+
+  @report_time
+  def fastCrossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
+    """
+    Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.
+
+    :param inDataset: Feature to be updated with a new 'CLASS' field
+    :type inDataset: str
+    :param xTable: Location of csv or json file with two columns, original class and the class it's changing to
+    :type xTable: str
+    :param curclass: Field that lists current class within inDataset
+    :type curclass: str.
+    """
+    logging.info("Calculating habitat")
+    if int(arcpy.GetCount_management(inDataset)[0]) > 0:
+        file_extension = os.path.splitext(xTable)[-1].lower()
+        if file_extension == ".json":
+          dataDict = json.load(open(xTable))
+        else:
+          with open(xTable, mode='r') as infile:
+            reader = csv.reader(infile)
+            dataDict = {rows[0]:rows[1].split(',') for rows in reader}
+        print(inDataset)
+        # Convert to numpy and update 'CLASS' based on join between dataDict and numpy table
+        df = pd.DataFrame.spatial.from_featureclass(inDataset)
+        reversed_dict = {val: key for key in dataDict for val in dataDict[key]}
+        df['CLASS'] = df[curclass].map(reversed_dict)
+        df.spatial.to_featureclass(location=inDataset+'CLASS')
+        return inDataset+'CLASS'
+    else:
+        return
+  
+  @report_time
+  def supaCrossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
+    df = make_df(inDataset)
+    outdf = calculate_field(df, inDataset, xTable, curclass)
+    print(outdf.head())
+    outdf = outdf[['OBJECTID', 'CLASS']]
+    v = outdf.reset_index()
+    outnp = np.rec.fromrecords(v, names=v.columns.tolist())
+    if len(arcpy.ListFields(inDataset,'CLASS'))>0:
+      print('deleting class field')
+      arcpy.DeleteField_management(inDataset, 'CLASS')
+    if len(arcpy.ListFields(inDataset,'index'))>0:
+      print('deleting index field')
+      arcpy.DeleteField_management(inDataset, 'index')         
+    arcpy.da.ExtendTable(inDataset, "OBJECTID", outnp, "OBJECTID")
+    #tmp = arcpy.SelectLayerByAttribute_management(in_layer_or_view=inDataset, selection_type="NEW_SELECTION", where_clause="OBJECTID < 10")
+    #print(arcpy.GetCount_management(tmp)[0])
+    #print(inDataset)
+    #arcpy.Copy_management(tmp, inDataset+'supafast')
+    #arcpy.TruncateTable_management(inDataset+'supafast')
+    #save_gdb_table(df, inDataset + 'supafast')
+    return inDataset  
 
   def joinEnergy(self, wetland, extra, mergedenergy):
     """
@@ -218,7 +317,10 @@ class Waterfowlmodel:
       return mergedenergy
     blah = [item[0] for item in extra.values()]
     print(blah)
-    arcpy.Merge_management(blah, os.path.join(self.scratch, 'mergedExtra'))  
+    arcpy.analysis.Union(' #;'.join([str(x) for x in blah]) + ' #', os.path.join(self.scratch, 'mergedExtra'), "ALL", None, "GAPS")
+    #arcpy.Merge_management(blah, os.path.join(self.scratch, 'mergedExtra'))
+    #arcpy.RepairGeometry_management(os.path.join(self.scratch, 'mergedExtra'))
+    print('timetoerase')
     arcpy.Erase_analysis(wetland, os.path.join(self.scratch, 'mergedExtra'), os.path.join(self.scratch, 'nwiDelExtra'))
     erased = [os.path.join(self.scratch, 'nwiDelExtra'), os.path.join(self.scratch, 'mergedExtra')]
     arcpy.Merge_management(erased, mergedenergy)
@@ -492,8 +594,12 @@ class Waterfowlmodel:
     """
     if not arcpy.Exists(self.protectedEnergy):
       #print('\tClean energy')
-      arcpy.RepairGeometry_management(self.mergedenergy)
-      arcpy.Clip_analysis(self.mergedenergy, self.protectedMerge, self.protectedEnergy)
+      try:
+        arcpy.Clip_analysis(self.mergedenergy, self.protectedMerge, self.protectedEnergy)
+      except Exception as e:
+        arcpy.RepairGeometry_management(self.mergedenergy)
+        arcpy.RepairGeometry_management(self.protectedMerge)
+        arcpy.Clip_analysis(self.mergedenergy, self.protectedMerge, self.protectedEnergy)
       arcpy.CalculateField_management(in_table=self.protectedEnergy, field="CalcHA", expression="!shape.area@hectares!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=self.protectedEnergy, field="avalNrgy", expression="!CalcHA!* !kcal!", expression_type="PYTHON_9.3", code_block="")
 
