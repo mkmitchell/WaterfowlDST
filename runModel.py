@@ -75,7 +75,7 @@ def main(argv):
    parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column name")
    parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
-   parser.add_argument('--fieldTable', '-a', nargs=1, type=str, default=[], help='Specify crosswalk to standardize field names and aliases.')
+   parser.add_argument('--fieldTable', '-f', nargs="*", type=str, default=[], help='Specify crosswalk to standardize field names and aliases.')
    parser.add_argument('--debug', '-z', nargs=7, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Energy demand by species, protected lands, habitat proportion, weighted mean, data check, zip]")
    
    # parse the command line
@@ -253,10 +253,7 @@ def main(argv):
    if debug[2]: #SPECIES PROPORTIONS
 
       print('\n#### ENERGY DEMAND BY SPECIES ####')
-      energyDemandBySpecies = summarizebySpecies(dst.demand, dst.scratch, dst.binIt, mergedAll, fieldtable)
-   
-   else: # NOT ENTIRELY SURE WHAT TO PUT HERE - JES...
-
+      energyDemandBySpecies = summarizebySpecies(demand, scratch, binIt, mergedAll, fieldtable)
 
 
    if debug[3]: #Public lands

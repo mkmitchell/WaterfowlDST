@@ -510,17 +510,17 @@ class Waterfowlmodel:
       speciesList = [f.upper() for f in fieldtable.species.unique() if f.upper()!='ALL']
 
       # filter demand layer to only this species...
-      selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
+      selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
 
       # if records for this species exist...
       if arcpy.management.GetCount(selectDemand)[0] > "0":
           
           # create a copy of the demand layer for this species
-          arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected_{}'.format(sp)))
-          demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected_{}'.format(sp))
+          arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp)))
+          demandSelected = os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp))
       
           # aggregate by field for this species, call it energydemand_speciesabbreviation
-          demandbySpecies = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand_{}'.format(sp))
+          demandbySpecies = dst.aggByField(mergedAll, scratch, demandSelected, binIt, 'energydemand_{}'.format(sp))
           
           # alter field names
           dfSpecies = df[df['species'] == sp]
@@ -539,7 +539,7 @@ class Waterfowlmodel:
           print('No records with {} species. Not calculated'.format(sp))
       
       # merge species level information
-      energydemand_byspecies = os.path.join(dst.scratch, 'energydemand_byspecies')
+      energydemand_byspecies = os.path.join(scratch, 'energydemand_byspecies')
       arcpy.management.Merge(speciesFCList, energydemand_byspecies)
       
       return(energydemand_byspecies)
