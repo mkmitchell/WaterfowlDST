@@ -55,7 +55,9 @@ def main(argv):
    :param aoi: Area of interest shapefile
    :type aoi: str
    :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, protected lands, habitat proportion, weighted mean, data check, zip it]
-   :type debug: str   
+   :type debug: str 
+   :param fieldTable: Table to standardize field names and aliases, this csv: ModelOutputFieldDictionary.csv
+   :type fieldTable: str
    """
    aoi = ''
    aoiname = ''
@@ -69,6 +71,7 @@ def main(argv):
    scratchgdb = ''
    outputgdb = ''
    outputFolder = ''
+   fieldTable = ''
    extra = {}
    mergebin = []
 
@@ -84,8 +87,9 @@ def main(argv):
    parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
    parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column name")
    parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name")
-   parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify area of interest layer name")
-   parser.add_argument('--debug', '-z', nargs=7, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, protected lands, habitat proportion, weighted mean, data check, zip]")
+   parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify are a of interest layer name")
+   parser.add_argument('--fieldTable', '-f', nargs="*", type=str, default=[], help='Specify crosswalk to standardize field names and aliases.')
+   parser.add_argument('--debug', '-z', nargs=8, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Species proportion, Energy demand by species, protected lands, habitat proportion, weighted mean, data check, zip]")
    
    # parse the command line
    args = parser.parse_args()
@@ -129,8 +133,14 @@ def main(argv):
       if len(args.extra)%2 != 0:
          print("Number of extra habitat datasets does not equal crossover tables")
       else:
-         #print('Extra datasets')
          extra = {i:[os.path.join(geodatabase,args.extra[i]), os.path.join(workspace,args.extra[i + 1])] for i in range(0, len(args.extra), 2)}
+   if len(args.fieldTable) > 0:
+      fieldTable = os.path.join(workspace, args.fieldTable[0])
+      if not os.path.isfile(fieldTable):
+         print("Field table doesn't exist.")
+         sys.exit(2)
+   else:
+      fieldTable = ''
    binIt = os.path.join(geodatabase,args.binIt[0])
    if not arcpy.Exists(binIt):
       print("Aggregation layer doesn't exist.")
@@ -151,6 +161,7 @@ def main(argv):
       os.mkdir(os.path.join(workspace, args.aoi[0]))
       os.mkdir(outputFolder)
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
+      outputgdb = os.path.join(workspace, args.aoi[0], 'output', args.aoi[0] + "_output.gdb")
       arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
       arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')
    else:
@@ -171,7 +182,7 @@ def main(argv):
    if args.debug:
       debug = args.debug
    else:
-      debug = [1, 1, 1, 1, 1, 1, 1]
+      debug = [1, 1, 1, 1, 1, 1, 1, 1]
        
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
@@ -191,6 +202,7 @@ def main(argv):
    printlog('\tGeodatabase', geodatabase)
    printlog('\tEnergy Supply table', kcalTable)
    printlog('\tEnergy demand layer', demand.inData)
+   printlog('\tStandardized Field Names', fieldTable)
    printlog('\tUrban layer', urban.inData)
    printlog('\tBin layer', binIt)
    printlog('\tBin unique', binUnique)
@@ -210,7 +222,7 @@ def main(argv):
       print('\n#### ENERGY SUPPLY ####')
       print('Wetland crossclass')
       dst.wetland = dst.supaCrossClass(dst.wetland, dst.crossTbl)
-      print(dst.extra.keys())
+      #print(dst.extra.keys())
       for i in dst.extra.keys():
          dst.crossClass(dst.extra[i][0], dst.extra[i][1])
       print('Join supply habitats')
@@ -235,15 +247,22 @@ def main(argv):
    if debug[1]: #Energy demand
       print('\n#### ENERGY DEMAND ####')
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
-      arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
-      demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
-      mergedAll = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
-      dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
+      if arcpy.management.GetCount(selectDemand)[0] > "0":
+         arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
+         demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
+         mergedAll = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
+         dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
+      elif arcpy.management.GetCount(selectDemand)[0] == "0":
+         print('No records with "All" species. Not calculated')
    else:
       demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
       dst.demand = os.path.join(dst.scratch, 'aggByFieldenergydemanddissolveHUC')
 
-   if debug[2]: #Public lands
+   if debug[2]: #Species proportion
+      print('\n#### ENERGY DEMAND BY SPECIES ####')
+      waterfowl.Waterfowlmodel.summarizebySpecies(dst.demand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
+
+   if debug[3]: #Public lands
       print('\n#### PUBLIC LANDS ####')
       nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
       padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
@@ -271,7 +290,7 @@ def main(argv):
    else:
       dst.protectedEnergy = (os.path.join(dst.scratch, 'aggtoprotectedEnergy'))
    
-   if debug[3]: #Habitat percentage
+   if debug[4]: #Habitat percentage
       print('\n#### HABITAT PERCENTAGE ####')
       if not debug[1]:
          mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
@@ -291,7 +310,7 @@ def main(argv):
       arcpy.AlterField_management(dst.urban, 'SUM_CalcHA', 'UrbanHA', 'Urban Hectares')
 
    print('\n#### Merging all the data for output ####')
-   arcpy.CopyFeatures_management(dst.demand ,os.path.join(dst.scratch, 'CHECKDEMAND'))
+   #arcpy.CopyFeatures_management(dst.demand ,os.path.join(dst.scratch, 'CHECKDEMAND'))
    mergebin.append(dst.unionEnergy(dst.energysupply, dst.demand)) #Energy supply and demand
    mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
    mergebin.append(dst.protectedEnergy) #Protected energy
@@ -315,16 +334,18 @@ def main(argv):
       print('DUD  difference %: {}'.format(int((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100)))
    
    if debug[6]: #Zip it
-      print('\n#### Zipping up data ####')
+      print('\n#### Add HUC and zip data ####')
+      print('\tAdd HUC')
       waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
       arcpy.ClearWorkspaceCache_management()
       try:
+         print('Zipping')
          waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
       except Exception as e:
          print(e)
       
-
-   print('\nCompleted in {}'.format(time.perf_counter() - startT))
+   print('\nComplete')
+   #print('\nCompleted in {}'.format(time.perf_counter() - startT))
    print('#####################################\n')
 
 if __name__ == "__main__":

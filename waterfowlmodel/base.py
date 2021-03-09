@@ -21,7 +21,6 @@ def report_time(func):
         return result
     return wrapper
 
-@report_time
 def make_df(in_table):
     columns = [f.name for f in arcpy.ListFields(in_table)]
     cur = arcpy.da.SearchCursor(in_table,columns)
@@ -29,7 +28,6 @@ def make_df(in_table):
     df = pd.DataFrame(rows,columns=columns)
     return df
 
-@report_time
 def calculate_field(df, inDataset, xTable, curclass):
     if int(arcpy.GetCount_management(inDataset)[0]) > 0:
         file_extension = os.path.splitext(xTable)[-1].lower()
@@ -42,13 +40,6 @@ def calculate_field(df, inDataset, xTable, curclass):
         reversed_dict = {val: key.replace('_', '') for key in dataDict for val in dataDict[key]}
         df['CLASS'] = df[curclass].map(reversed_dict)    
     return df    
-
-@report_time
-def save_gdb_table(df,out_table):
-    rows_to_write = [tuple(r[1:]) for r in df.itertuples()]
-    with arcpy.da.InsertCursor(out_table,df.columns) as ins_cur:
-        for row in rows_to_write:
-            ins_cur.insertRow(row)
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
@@ -192,7 +183,6 @@ class Waterfowlmodel:
       a+=1
     return readyExtra
 
-  @report_time
   def crossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
     """
     Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.
@@ -244,19 +234,16 @@ class Waterfowlmodel:
     else:
       return
   
-  @report_time
   def supaCrossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
     df = make_df(inDataset)
     outdf = calculate_field(df, inDataset, xTable, curclass)
-    print(outdf.head())
+    #print(outdf.head())
     outdf = outdf[['OBJECTID', 'CLASS']]
     v = outdf.reset_index()
     outnp = np.rec.fromrecords(v, names=v.columns.tolist())
     if len(arcpy.ListFields(inDataset,'CLASS'))>0:
-      print('deleting class field')
       arcpy.DeleteField_management(inDataset, 'CLASS')
     if len(arcpy.ListFields(inDataset,'index'))>0:
-      print('deleting index field')
       arcpy.DeleteField_management(inDataset, 'index')         
     arcpy.da.ExtendTable(inDataset, "OBJECTID", outnp, "OBJECTID")
     return inDataset  
@@ -535,7 +522,7 @@ class Waterfowlmodel:
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80DUD', expression="!aggByField" + cat + "unionhucfips.X80DUD! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80PopObj', expression="!aggByField" + cat + "unionhucfips.X80PopObj! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80Demand', expression="!aggByField" + cat + "unionhucfips.X80Demand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")      
-      print('\tdissolve and alter field names')
+      print('\tDissolve and alter field names')
       arcpy.Dissolve_management(in_features=outLayer + 'unionhucfips', out_feature_class=outLayer+'dissolveHUC', dissolve_field="huc12", statistics_fields="LTADUD SUM;LTAPopObj SUM;LTADemand SUM;X80DUD SUM;X80PopObj SUM;X80Demand SUM", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTADUD', 'LTADUD', 'Long term average Duck use days')
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTAPopObj', 'LTAPopObj', 'Long term average Population objective')
@@ -551,6 +538,56 @@ class Waterfowlmodel:
       print(exc_type, fname, exc_tb.tb_lineno)
       sys.exit()
 
+  def summarizebySpecies(demand, scratch, binIt, mergedAll, fieldtable):
+      """
+      Aggregates species specific energy demand on a smaller scale to multple larger scale features.  Example: County to HUC12.
+
+      :param demand: Energy demand layer
+      :type demand: str
+      :param scratch: Scratch geodatabase location
+      :type scratch: str  
+      :param binIt: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+      :type binIt: str
+      :param mergeAll: Merged energy returned from self.prepnpptables.
+      :type mergeAll: str
+      :fieldtable: ModelOutputFieldDictionary.csv, contains crosswalk from original field names to correct field names and aliases.
+      :return: Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply
+      :rtype:  str
+      """
+      # read in csv
+      fieldtable = pd.read_csv(fieldtable, encoding='unicode_escape')
+      # list of feature classes that will be created.
+      speciesFCList = []
+      # species list
+      speciesList = [f.upper() for f in fieldtable.species.unique() if f.upper()!='ALL']
+      # filter demand layer to only this species...
+      selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
+      # if records for this species exist...
+      if arcpy.management.GetCount(selectDemand)[0] > "0":
+          # create a copy of the demand layer for this species
+          arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp)))
+          demandSelected = os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp))
+          # aggregate by field for this species, call it energydemand_speciesabbreviation
+          demandbySpecies = dst.aggByField(mergedAll, scratch, demandSelected, binIt, 'energydemand_{}'.format(sp))
+          # alter field names
+          dfSpecies = df[df['species'] == sp]
+          for i, row in dfSpecies.iterrows():
+              if dfSpecies['original_field_name'] in [f.name for f in arcpy.ListFields(demandbySpecies)]:
+                  arcpy.AlterField_management(demandbySpecies,
+                                              field=dfSpecies['original_field_name'], 
+                                              new_field_name=dfSpecies['field_name'],
+                                              new_field_alias=dfSpecies['field_alias'])
+                  
+          # append new feature class name to list of species-level feature classes ...
+          speciesFCList.append(demandbySpecies)
+      elif arcpy.management.GetCount(selectDemand)[0] == "0":
+          print('No records with {} species. Not calculated'.format(sp))
+      
+      # merge species level information
+      energydemand_byspecies = os.path.join(scratch, 'energydemand_byspecies')
+      arcpy.management.Merge(speciesFCList, energydemand_byspecies)
+
+  @report_time
   def calcProtected(self):
     """
     Creates attribute for hectares of habitat and hectares of protected habitat
@@ -579,7 +616,7 @@ class Waterfowlmodel:
     if not len(arcpy.ListFields(self.protectedMerge,'CalcHA'))>0:
         arcpy.AddField_management(self.protectedMerge, 'CalcHA', "DOUBLE", 9, 2, "", "GIS Hectares") 
     arcpy.CalculateGeometryAttributes_management(self.protectedMerge, "CalcHA AREA", area_unit="HECTARES")      
-    
+
   def prepnpTables(self, demand, binme, energy, scratch):
     """
     Reads in merged energy dataset, repairs it, then exports a csv file for use in habitat proportion calculations.
@@ -620,14 +657,14 @@ class Waterfowlmodel:
     dfmerge['pct'] = (dfmerge['CalcHA_x']/dfmerge['CalcHA_y'])*100
     outdf = dfmerge.pivot_table(index=self.binUnique, columns='CLASS', values='pct', aggfunc=np.sum)
     outdf = outdf.fillna(0)
-    print(outdf.head())
-    print(outdf.sum(axis=1))
+    #print(outdf.head())
+    #print(outdf.sum(axis=1))
     badfields = []
     for field in self.kcalList:
       try:
         outdf[field] = outdf[field] # Percent only
       except:
-        print('\tNo habitat in aoi:', field)
+        #print('\tNo habitat in aoi:', field)
         badfields.append(field)
         continue
     outdf.to_csv(os.path.join(os.path.dirname(self.scratch),'HabitatPct.csv'), index=True)
@@ -680,17 +717,5 @@ class Waterfowlmodel:
     arcpy.CalculateField_management(joinedhab, 'wtMeankcal', '!HUCwtMean.wtmean!', "PYTHON3")
     return os.path.join(self.scratch,'aggByFieldenergydemanddissolveHUC')
 
-  def availHA(self, urban, binme):
-    """
-    Calculates habitat hectares that aren't Urban within bins
-
-    :param urban: Urban feature dataset location
-    :type urban: str
-    :param binme: Bin to aggregate data to
-    :type binme: str
-    :return: Feature class with available acres as an attribute
-    :rtype: str 
-    """    
-    
 
       
