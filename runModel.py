@@ -54,7 +54,7 @@ def main(argv):
    :type binUnique: str   
    :param aoi: Area of interest shapefile
    :type aoi: str
-   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, protected lands, habitat proportion, weighted mean, data check, zip it]
+   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, species proportion, protected lands, habitat proportion, weighted mean, data check, zip it]
    :type debug: str 
    :param fieldTable: Table to standardize field names and aliases, this csv: ModelOutputFieldDictionary.csv
    :type fieldTable: str
@@ -85,11 +85,11 @@ def main(argv):
    parser.add_argument('--demand', '-d', nargs=1, type=str, default=[], help="Specify name of NAWCA stepdown layer")
    parser.add_argument('--extra', '-e', nargs="*", type=str, default=[], help="Extra habitat datasets in format: full path to dataset 1, full path to crosswalk 1, full path to dataset 2, full path to crosswalk")
    parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
-   parser.add_argument('--binUnique', '-u', nargs=1, type=str, default=[], help="Specify the aggregation layer unique column name")
+   parser.add_argument('--binUnique', '-u', nargs=2, type=str, default=[], help="Specify the aggregation layer unique column and name")
    parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify are a of interest layer name")
    parser.add_argument('--fieldTable', '-f', nargs="*", type=str, default=[], help='Specify crosswalk to standardize field names and aliases.')
-   parser.add_argument('--debug', '-z', nargs=8, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Species proportion, Energy demand by species, protected lands, habitat proportion, weighted mean, data check, zip]")
+   parser.add_argument('--debug', '-z', nargs=8, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, weighted mean, data check, zip]")
    
    # parse the command line
    args = parser.parse_args()
@@ -138,14 +138,14 @@ def main(argv):
       fieldTable = os.path.join(workspace, args.fieldTable[0])
       if not os.path.isfile(fieldTable):
          print("Field table doesn't exist.")
-         sys.exit(2)
+         sys.exit(2)         
    else:
       fieldTable = ''
    binIt = os.path.join(geodatabase,args.binIt[0])
    if not arcpy.Exists(binIt):
       print("Aggregation layer doesn't exist.")
       sys.exit(2)
-   binUnique = args.binUnique[0]    
+   binUnique = args.binUnique  
    if not len(arcpy.ListFields(binIt,binUnique))>0:
       print("AOI field doesn't have the unique identifier.")
       sys.exit(2)
@@ -183,6 +183,9 @@ def main(argv):
       debug = args.debug
    else:
       debug = [1, 1, 1, 1, 1, 1, 1, 1]
+   if debug[2] == 1 and fieldTable == '':
+      print('Field table not defined but option is enabled')
+      sys.exit(2)
        
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
@@ -205,7 +208,7 @@ def main(argv):
    printlog('\tStandardized Field Names', fieldTable)
    printlog('\tUrban layer', urban.inData)
    printlog('\tBin layer', binIt)
-   printlog('\tBin unique', binUnique)
+   printlog('\tBin unique', ', '.join(binUnique))
    printlog('\tExtra datasets', str(int(len(args.extra)/2)))
    printlog('\tBin layer', binIt)
    printlog('\tRegion of interest', aoi)
@@ -243,6 +246,8 @@ def main(argv):
          arcpy.AlterField_management(dst.energysupply, 'SUM_CalcHA', 'THabHA', 'TotalHabitatHA')
    else:
       dst.energysupply = os.path.join(dst.scratch, 'aggtosupplyenergy')
+      if not int(len(args.extra)/2) > 0:
+         dst.mergedenergy = dst.wetland
 
    if debug[1]: #Energy demand
       print('\n#### ENERGY DEMAND ####')
@@ -294,7 +299,7 @@ def main(argv):
       print('\n#### HABITAT PERCENTAGE ####')
       if not debug[1]:
          mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
-      habpct = dst.pctHabitatType()
+      habpct = dst.pctHabitatType(dst.binUnique[0])
 
    print('\n#### HABITAT WEIGHTED MEAN ####')
    if not debug[1]:
@@ -310,7 +315,6 @@ def main(argv):
       arcpy.AlterField_management(dst.urban, 'SUM_CalcHA', 'UrbanHA', 'Urban Hectares')
 
    print('\n#### Merging all the data for output ####')
-   #arcpy.CopyFeatures_management(dst.demand ,os.path.join(dst.scratch, 'CHECKDEMAND'))
    mergebin.append(dst.unionEnergy(dst.energysupply, dst.demand)) #Energy supply and demand
    mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
    mergebin.append(dst.protectedEnergy) #Protected energy
@@ -326,20 +330,19 @@ def main(argv):
       outputStats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'outputStats'), ['SUM_THabNrg', 'SUM_TLTADemand', 'SUM_TLTADUD'])
       inenergystats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'mergedEnergyStats'), ['SUM_avalNrgy'])
       indemandstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'demandStats'), ['SUM_LTADemand', 'SUM_LTADUD'])
-      print('Output energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
-      print('Energy difference %: {}'.format(int((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100)))
+      print('\tOutput energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
+      print('\tEnergy difference %: {}'.format(int((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100)))
       print('\nOutput demand: {}\nInput demand: {}'.format(outputStats[0][1], indemandstats[0][0]))
-      print('Demand  difference %: {}'.format(int((outputStats[0][1] - indemandstats[0][0])/(outputStats[0][1] + indemandstats[0][0])*100)))
+      print('\tDemand  difference %: {}'.format(int((outputStats[0][1] - indemandstats[0][0])/(outputStats[0][1] + indemandstats[0][0])*100)))
       print('\nOutput DUD: {}\nInput DUD: {}'.format(outputStats[0][2], indemandstats[0][1]))
-      print('DUD  difference %: {}'.format(int((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100)))
+      print('\tDUD  difference %: {}'.format(int((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100)))
    
    if debug[6]: #Zip it
-      print('\n#### Add HUC and zip data ####')
-      print('\tAdd HUC')
-      waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
+      print('\n#### Zip data ####')
+      #print('\tAdd HUC')
+      #waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
       arcpy.ClearWorkspaceCache_management()
       try:
-         print('Zipping')
          waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
       except Exception as e:
          print(e)
