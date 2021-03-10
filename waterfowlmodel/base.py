@@ -556,6 +556,7 @@ class Waterfowlmodel:
       # list of feature classes that will be created.
       speciesFCList = []
       # species list
+      fieldtable["species"]=fieldtable["species"].apply(str)
       speciesList = [f.upper() for f in fieldtable.species.unique() if f.upper()!='ALL']
       # filter demand layer to only this species...
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
