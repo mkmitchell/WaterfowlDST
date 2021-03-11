@@ -249,6 +249,10 @@ def main(argv):
       if not int(len(args.extra)/2) > 0:
          dst.mergedenergy = dst.wetland
 
+   if debug[2]: #Species proportion
+      print('\n#### ENERGY DEMAND BY SPECIES ####')
+      demandSp = waterfowl.Waterfowlmodel.summarizebySpecies(dst.demand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
+
    if debug[1]: #Energy demand
       print('\n#### ENERGY DEMAND ####')
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
@@ -262,10 +266,6 @@ def main(argv):
    else:
       demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
       dst.demand = os.path.join(dst.scratch, 'aggByFieldenergydemanddissolveHUC')
-
-   if debug[2]: #Species proportion
-      print('\n#### ENERGY DEMAND BY SPECIES ####')
-      waterfowl.Waterfowlmodel.summarizebySpecies(dst.demand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
 
    if debug[3]: #Public lands
       print('\n#### PUBLIC LANDS ####')
