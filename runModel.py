@@ -271,7 +271,7 @@ def main(argv):
       print('\n#### PUBLIC LANDS ####')
       nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
       padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
-      print('Public lands ready. Analyzing')
+      print('\tPublic lands ready. Analyzing')
       dst.prepProtected([nced.land, padus.land])
       protectedbin = dst.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "protectedbin")
       if not len(arcpy.ListFields(protectedbin,'ProtHA'))>0:
@@ -279,7 +279,7 @@ def main(argv):
             arcpy.AlterField_management(protectedbin, 'SUM_CalcHA', 'ProtHA', 'ProtectedHectares')
          else:
             arcpy.AlterField_management(protectedbin, 'CalcHA', 'ProtHA', 'ProtectedHectares')
-      print('Calculate and bin protected habitat energy and hectares')
+      print('\tCalculate and bin protected habitat energy and hectares')
       dst.calcProtected()
       dst.protectedEnergy = dst.aggproportion(dst.binIt, dst.protectedEnergy, "OBJECTID", ["CalcHA", "avalNrgy"], [dst.binUnique], dst.scratch, "protectedEnergy")
       if not len(arcpy.ListFields(dst.protectedEnergy,'ProtHabHA'))>0:
