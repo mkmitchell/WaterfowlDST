@@ -568,19 +568,19 @@ class Waterfowlmodel:
         # create a copy of the demand layer for this species
         arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp)))
         demandSelected = os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp))
-        print("Aggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
+        print("\tAggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
         demandbySpecies = Waterfowlmodel.aggByField(self, mergedAll, scratch, demandSelected, binIt, 'energydemand_{}'.format(sp))
         outputFields = [f.name for f in arcpy.ListFields(demandbySpecies)]
         dfSpecies = fieldtable[fieldtable['species'] == sp]
-        print("Number of rows in species table: ", len(dfSpecies))
+        print("\tNumber of rows in species table: ", len(dfSpecies))
+        print("\tFixing field names to be species-specific for ", sp)
         for i, row in dfSpecies.iterrows():
           if row['original_field_name'] in outputFields:
-            print("Fixing field names to be species-specific for ", sp)
             arcpy.AlterField_management(demandbySpecies, field=row['original_field_name'], new_field_name=row['field_name'],new_field_alias=row['field_alias'])
         speciesFCList.append(demandbySpecies)
       elif arcpy.management.GetCount(selectDemand)[0] == "0":
-        print('No records with {} species. Not calculated'.format(sp))
-    print("Merging all species-level data into one layer called demandbySpecies")
+        print('\tNo records with {} species. Not calculated'.format(sp))
+    print("\tMerging all species-level data into one layer called demandbySpecies")
     arcpy.management.Merge(speciesFCList, os.path.join(scratch, 'demandbySpecies'))
 
   @report_time
