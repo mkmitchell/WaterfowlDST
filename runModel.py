@@ -219,7 +219,7 @@ def main(argv):
 
    startT = time.perf_counter()
    print('\n#### Create waterfowl object ####')
-   dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, urban.inData, binIt, binUnique, extra, scratchgdb)
+   dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, urban.inData, binIt, binUnique, extra, fieldTable, scratchgdb)
    logging.info('Wetland layer '.join(map(str, list(dst.__dict__))))
    if debug[0]: #Energy supply
       print('\n#### ENERGY SUPPLY ####')
@@ -251,7 +251,7 @@ def main(argv):
 
    if debug[2]: #Species proportion
       print('\n#### ENERGY DEMAND BY SPECIES ####')
-      demandSp = waterfowl.Waterfowlmodel.summarizebySpecies(dst.demand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
+      demandSp = dst.summarizebySpecies(dst.demand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
 
    if debug[1]: #Energy demand
       print('\n#### ENERGY DEMAND ####')

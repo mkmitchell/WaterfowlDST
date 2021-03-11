@@ -43,7 +43,7 @@ def calculate_field(df, inDataset, xTable, curclass):
 
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
-  def __init__(self, aoi, aoiname, wetland, kcalTable, crosswalk, demand, urban, binIt, binUnique, extra, scratch):
+  def __init__(self, aoi, aoiname, wetland, kcalTable, crosswalk, demand, urban, binIt, binUnique, extra, fieldtable, scratch):
     """
     Creates a waterfowl model object.
     
@@ -67,8 +67,9 @@ class Waterfowlmodel:
     :type binUnique: str
     :param extra: List of extra datasets and their corresponding crossover table
     :type extra: str
+    :param fieldtable
     :param scratch: Scratch geodatabase location
-    :type scratch: str   
+    :type scratch: str 
     """
     self.scratch = scratch
     self.aoi = self.projAlbers(aoi, 'AOI')
@@ -87,6 +88,7 @@ class Waterfowlmodel:
     self.protectedEnergy = os.path.join(self.scratch, 'protectedEnergy')
     self.EnergySurplusDeficit = os.path.join(self.scratch, "BinnedEnergyComparison")
     self.energysupply = os.path.join(self.scratch, "EnergySupply")
+    self.fieldtable = fieldtable
     env.workspace = scratch
 
   def projAlbers(self, inFeature, cat):
@@ -535,55 +537,51 @@ class Waterfowlmodel:
       print(exc_type, fname, exc_tb.tb_lineno)
       sys.exit()
 
-  def summarizebySpecies(demand, scratch, binIt, mergedAll, fieldtable):
-      """
-      Aggregates species specific energy demand on a smaller scale to multple larger scale features.  Example: County to HUC12.
+  def summarizebySpecies(self, demand, scratch, binIt, mergedAll, fieldtable):
+    """
+    Aggregates species specific energy demand on a smaller scale to multple larger scale features.  Example: County to HUC12.
 
-      :param demand: Energy demand layer
-      :type demand: str
-      :param scratch: Scratch geodatabase location
-      :type scratch: str  
-      :param binIt: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
-      :type binIt: str
-      :param mergeAll: Merged energy returned from self.prepnpptables.
-      :type mergeAll: str
-      :fieldtable: ModelOutputFieldDictionary.csv, contains crosswalk from original field names to correct field names and aliases.
-      :return: Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply
-      :rtype:  str
-      """
-      # read in csv
-      fieldtable = pd.read_csv(fieldtable, encoding='unicode_escape')
-      # list of feature classes that will be created.
-      speciesFCList = []
-      # species list
-      fieldtable["species"]=fieldtable["species"].apply(str)
-      speciesList = [f.upper() for f in fieldtable.species.unique() if f.upper()!='ALL']
+    :param demand: Energy demand layer
+    :type demand: str
+    :param scratch: Scratch geodatabase location
+    :type scratch: str  
+    :param binIt: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+    :type binIt: str
+    :param mergeAll: Merged energy returned from self.prepnpptables.
+    :type mergeAll: str
+    :fieldtable: ModelOutputFieldDictionary.csv, contains crosswalk from original field names to correct field names and aliases.
+    :return: Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply
+    :rtype:  str
+    """
+    # read in csv
+    fieldtable = pd.read_csv(fieldtable, encoding='unicode_escape')
+    # list of feature classes that will be created.
+    speciesFCList = []
+    # species list
+    fieldtable["species"]=fieldtable["species"].apply(str)
+    speciesList = [f.upper() for f in fieldtable.species.unique() if f.upper()!='ALL']
+    for sp in speciesList:
       # filter demand layer to only this species...
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
       # if records for this species exist...
       if arcpy.management.GetCount(selectDemand)[0] > "0":
-          # create a copy of the demand layer for this species
-          arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp)))
-          demandSelected = os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp))
-          # aggregate by field for this species, call it energydemand_speciesabbreviation
-          demandbySpecies = dst.aggByField(mergedAll, scratch, demandSelected, binIt, 'energydemand_{}'.format(sp))
-          # alter field names
-          dfSpecies = df[df['species'] == sp]
-          for i, row in dfSpecies.iterrows():
-              if dfSpecies['original_field_name'] in [f.name for f in arcpy.ListFields(demandbySpecies)]:
-                  arcpy.AlterField_management(demandbySpecies,
-                                              field=dfSpecies['original_field_name'], 
-                                              new_field_name=dfSpecies['field_name'],
-                                              new_field_alias=dfSpecies['field_alias'])
-                  
-          # append new feature class name to list of species-level feature classes ...
-          speciesFCList.append(demandbySpecies)
+        # create a copy of the demand layer for this species
+        arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp)))
+        demandSelected = os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp))
+        print("Aggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
+        demandbySpecies = Waterfowlmodel.aggByField(self, mergedAll, scratch, demandSelected, binIt, 'energydemand_{}'.format(sp))
+        outputFields = [f.name for f in arcpy.ListFields(demandbySpecies)]
+        dfSpecies = fieldtable[fieldtable['species'] == sp]
+        print("Number of rows in species table: ", len(dfSpecies))
+        for i, row in dfSpecies.iterrows():
+          if row['original_field_name'] in outputFields:
+            print("Fixing field names to be species-specific for ", sp)
+            arcpy.AlterField_management(demandbySpecies, field=row['original_field_name'], new_field_name=row['field_name'],new_field_alias=row['field_alias'])
+        speciesFCList.append(demandbySpecies)
       elif arcpy.management.GetCount(selectDemand)[0] == "0":
-          print('No records with {} species. Not calculated'.format(sp))
-      
-      # merge species level information
-      energydemand_byspecies = os.path.join(scratch, 'energydemand_byspecies')
-      arcpy.management.Merge(speciesFCList, energydemand_byspecies)
+        print('No records with {} species. Not calculated'.format(sp))
+    print("Merging all species-level data into one layer called demandbySpecies")
+    arcpy.management.Merge(speciesFCList, os.path.join(scratch, 'demandbySpecies'))
 
   @report_time
   def calcProtected(self):
