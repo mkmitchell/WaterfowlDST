@@ -144,10 +144,10 @@ class Waterfowlmodel:
     outfc = os.path.join(self.scratch, cat + 'clip')
     if arcpy.Exists(outfc):
       #print('\tAlready have {} clipped with aoi'.format(cat))
-      logging.info('Already have {} clipped with aoi'.format(cat))
+      logging.info('\tAlready have {} clipped with aoi'.format(cat))
     else:
       print('\tClipping {}'.format(cat + ' layer: ' + inFeature + ' to ' + outfc))
-      logging.info("Clipping features")
+      logging.info("\tClipping features")
       if cat == 'demand':
         print('\tDemand feature layer')
         arcpy.MakeFeatureLayer_management(in_features=inFeature, out_layer=outfc + 'tLayer', where_clause="", workspace="", field_info="OBJECTID OBJECTID VISIBLE NONE;Shape Shape VISIBLE NONE;SQMI SQMI VISIBLE NONE;ACRE ACRE VISIBLE NONE;ICP ICP VISIBLE NONE;LCP LCP VISIBLE NONE;BCR BCR VISIBLE NONE;JV JV VISIBLE NONE;species species VISIBLE NONE;fips fips VISIBLE NONE;CODE CODE VISIBLE NONE;LTADUD LTADUD VISIBLE RATIO;X80DUD X80DUD VISIBLE RATIO;LTAPopObj LTAPopObj VISIBLE RATIO;X80PopObj X80PopObj VISIBLE RATIO;LTADemand LTADemand VISIBLE RATIO;X80Demand X80Demand VISIBLE RATIO;REGION REGION VISIBLE NONE;Shape_Leng Shape_Leng VISIBLE NONE;Shape_Length Shape_Length VISIBLE NONE;Shape_Area Shape_Area VISIBLE NONE")
@@ -594,6 +594,7 @@ class Waterfowlmodel:
       try:
         arcpy.Clip_analysis(self.mergedenergy, self.protectedMerge, self.protectedEnergy)
       except Exception as e:
+        print('\t Need to repair')
         arcpy.RepairGeometry_management(self.mergedenergy)
         arcpy.RepairGeometry_management(self.protectedMerge)
         arcpy.Clip_analysis(self.mergedenergy, self.protectedMerge, self.protectedEnergy)
