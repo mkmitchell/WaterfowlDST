@@ -54,7 +54,7 @@ def main(argv):
    :type binUnique: str   
    :param aoi: Area of interest shapefile
    :type aoi: str
-   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, Demand, species proportion, protected lands, habitat proportion, weighted mean, data check, zip it]
+   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, demand, species proportion, protected lands, habitat proportion, urban, data check, zip it]
    :type debug: str 
    :param fieldTable: Table to standardize field names and aliases, this csv: ModelOutputFieldDictionary.csv
    :type fieldTable: str
@@ -89,11 +89,12 @@ def main(argv):
    parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify are a of interest layer name")
    parser.add_argument('--fieldTable', '-f', nargs="*", type=str, default=[], help='Specify crosswalk to standardize field names and aliases.')
-   parser.add_argument('--debug', '-z', nargs=8, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, weighted mean, data check, zip]")
+   parser.add_argument('--debug', '-z', nargs=8, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, data check, zip]")
    
    # parse the command line
    args = parser.parse_args()
-   print(args)
+   print('')
+   #print(args)
    if len(argv) < 12:
       parser.print_help()
       sys.exit(2)    
@@ -155,6 +156,7 @@ def main(argv):
       sys.exit(2)      
    aoi = os.path.join(geodatabase,args.aoi[0])
    aoiname = args.aoi[0]
+   aoiworkspace = os.path.join(os.path.join(workspace, args.aoi[0]))
    outputFolder = os.path.join(workspace, args.aoi[0], 'output')
    if not (os.path.exists(os.path.join(workspace, args.aoi[0]))):
       print('Creating project folder: ', os.path.join(os.path.join(workspace, args.aoi[0])))
@@ -197,6 +199,7 @@ def main(argv):
    print('\nModel Input parameters')
    print('#####################################')
    printlog('\tWorkspace', workspace)
+   printlog('\tAOI Workspace', aoiworkspace)
    printlog('\tDate', datetime.datetime.now().strftime("%m_%d_%Y"))
    printlog('\tWetland layer', wetland.inData)
    printlog('\tWetland crosswalk', wetland.crosswalk)
@@ -223,22 +226,25 @@ def main(argv):
    logging.info('Wetland layer '.join(map(str, list(dst.__dict__))))
    if debug[0]: #Energy supply
       print('\n#### ENERGY SUPPLY ####')
-      print('Wetland crossclass')
+      print('\tWetland crossclass')
       dst.wetland = dst.supaCrossClass(dst.wetland, dst.crossTbl)
       #print(dst.extra.keys())
       for i in dst.extra.keys():
          dst.crossClass(dst.extra[i][0], dst.extra[i][1])
-      print('Join supply habitats')
+      print('\tJoin supply habitats')
       if int(len(args.extra)/2) > 0:
          dst.mergedenergy = dst.joinEnergy(dst.wetland, dst.extra, dst.mergedenergy)
       else:
          dst.mergedenergy = dst.wetland
-      print('Prep supply Energy')
+      print('\tPrep supply Energy')
       dst.mergedenergy = dst.prepEnergyFast(dst.mergedenergy, dst.kcalTbl)
-      print('Merge supply Energy')
+      print('\tMerge supply Energy')
       allEnergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.mergedenergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
       arcpy.CopyFeatures_management(allEnergy, dst.mergedenergy + 'Selection')
       dst.mergedenergy = dst.mergedenergy + 'Selection'
+      pdClean = dst.pandasClean(aoiworkspace, dst.mergedenergy)
+      dst.mergedenergy = dst.cleanMe(dst.mergedenergy)
+      sys.exit()
       dst.energysupply = dst.aggproportion(dst.binIt, dst.mergedenergy, "OBJECTID", ["avalNrgy", "CalcHA"], [dst.binUnique], dst.scratch, "supplyenergy")
       if not len(arcpy.ListFields(dst.energysupply,'THabNrg'))>0:
          arcpy.AlterField_management(dst.energysupply, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
@@ -259,7 +265,7 @@ def main(argv):
       if arcpy.management.GetCount(selectDemand)[0] > "0":
          arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
          demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
-         mergedAll = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
+         mergedAll, wtmarray = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
          dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
       elif arcpy.management.GetCount(selectDemand)[0] == "0":
          print('No records with "All" species. Not calculated')
@@ -272,7 +278,8 @@ def main(argv):
       nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
       padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
       print('\tPublic lands ready. Analyzing')
-      dst.prepProtected([nced.land, padus.land])
+      #dst.prepProtected([nced.land, padus.land])
+      dst.protectedMerge = dst.pandasMerge(padus.land, nced.land, os.path.join(aoiworkspace, "Protected" + aoiname + ".shp"))
       protectedbin = dst.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "protectedbin")
       if not len(arcpy.ListFields(protectedbin,'ProtHA'))>0:
          if len(arcpy.ListFields(protectedbin,'SUM_CalcHA'))>0:
@@ -280,7 +287,7 @@ def main(argv):
          else:
             arcpy.AlterField_management(protectedbin, 'CalcHA', 'ProtHA', 'ProtectedHectares')
       print('\tCalculate and bin protected habitat energy and hectares')
-      dst.calcProtected()
+      dst.calcProtected(dst.mergedenergy, dst.protectedMerge, dst.protectedEnergy)
       dst.protectedEnergy = dst.aggproportion(dst.binIt, dst.protectedEnergy, "OBJECTID", ["CalcHA", "avalNrgy"], [dst.binUnique], dst.scratch, "protectedEnergy")
       if not len(arcpy.ListFields(dst.protectedEnergy,'ProtHabHA'))>0:
          if len(arcpy.ListFields(dst.protectedEnergy,'SUM_CalcHA'))>0:
@@ -293,26 +300,30 @@ def main(argv):
          else:
             arcpy.AlterField_management(dst.protectedEnergy, 'avalNrgy', 'ProtHabNrg', 'ProtectedHabitatEnergy')
    else:
-      dst.protectedEnergy = (os.path.join(dst.scratch, 'aggtoprotectedEnergy'))
+      dst.protectedEnergy = os.path.join(dst.scratch, 'aggtoprotectedEnergy')
+      dst.protectedMerge = os.path.join(aoiworkspace, "Protected" + aoiname + ".shp")
    
-   if debug[4]: #Habitat percentage
+   if debug[4]: #Habitat proportions
       print('\n#### HABITAT PERCENTAGE ####')
       if not debug[1]:
-         mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
+         mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
       habpct = dst.pctHabitatType(dst.binUnique[0])
 
    print('\n#### HABITAT WEIGHTED MEAN ####')
    if not debug[1]:
-      mergedAll = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
-   wtmean = dst.weightedMean()
+      mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
+   dst.weightedMean(dst.demand, wtmarray)
 
-   print('\n#### Calculate available HA ####')
-   if not len(arcpy.ListFields(dst.urban,'CalcHA'))>0:
-      arcpy.AddField_management(dst.urban, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
-   arcpy.CalculateGeometryAttributes_management(dst.urban, "CalcHA AREA", area_unit="HECTARES")
-   dst.urban = dst.aggproportion(dst.binIt, dst.urban, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "urban")
-   if len(arcpy.ListFields(dst.urban,'SUM_CalcHA'))>0:
-      arcpy.AlterField_management(dst.urban, 'SUM_CalcHA', 'UrbanHA', 'Urban Hectares')
+   if debug[5]:
+      print('\n#### Calculate Urban HA ####')
+      if not len(arcpy.ListFields(dst.urban,'CalcHA'))>0:
+         arcpy.AddField_management(dst.urban, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
+      arcpy.CalculateGeometryAttributes_management(dst.urban, "CalcHA AREA", area_unit="HECTARES")
+      dst.urban = dst.aggproportion(dst.binIt, dst.urban, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "urban")
+      if len(arcpy.ListFields(dst.urban,'SUM_CalcHA'))>0:
+         arcpy.AlterField_management(dst.urban, 'SUM_CalcHA', 'UrbanHA', 'Urban Hectares')
+   else:
+      dst.urban = os.path.join(dst.scratch, 'aggtourban')
 
    print('\n#### Merging all the data for output ####')
    mergebin.append(dst.unionEnergy(dst.energysupply, dst.demand)) #Energy supply and demand
@@ -321,23 +332,27 @@ def main(argv):
    mergebin.append(dst.urban) #Urban - available HA
    outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
 
-   if debug[5]: #Data check
+   if debug[6]: #Data check
       np.set_printoptions(suppress=True)
       print('\n#### Checking data ####')
-      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="THabNrg SUM; TLTADemand SUM; TLTADUD SUM")
+      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="THabNrg SUM; TLTADemand SUM; TLTADUD SUM; ProtHA SUM")
       arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
       arcpy.Statistics_analysis(in_table=demandSelected, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM; LTADUD SUM")
-      outputStats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'outputStats'), ['SUM_THabNrg', 'SUM_TLTADemand', 'SUM_TLTADUD'])
+      arcpy.Statistics_analysis(in_table=dst.protectedMerge, out_table=os.path.join(dst.scratch, 'protStats'), statistics_fields="CalcHA SUM")
+      outputStats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'outputStats'), ['SUM_THabNrg', 'SUM_TLTADemand', 'SUM_TLTADUD','SUM_ProtHA'])
       inenergystats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'mergedEnergyStats'), ['SUM_avalNrgy'])
       indemandstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'demandStats'), ['SUM_LTADemand', 'SUM_LTADUD'])
-      print('\tOutput energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
+      inprotstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'protStats'), ['SUM_CalcHA'])
+      print('\nOutput energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
       print('\tEnergy difference %: {}'.format(int((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100)))
       print('\nOutput demand: {}\nInput demand: {}'.format(outputStats[0][1], indemandstats[0][0]))
       print('\tDemand  difference %: {}'.format(int((outputStats[0][1] - indemandstats[0][0])/(outputStats[0][1] + indemandstats[0][0])*100)))
       print('\nOutput DUD: {}\nInput DUD: {}'.format(outputStats[0][2], indemandstats[0][1]))
       print('\tDUD  difference %: {}'.format(int((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100)))
-   
-   if debug[6]: #Zip it
+      print('\nOutput Protection HA: {}\nInput HA: {}'.format(outputStats[0][3], inprotstats[0][0]))
+      print('\tProtection  difference %: {}'.format(int((outputStats[0][3] - inprotstats[0][0])/(outputStats[0][3] + inprotstats[0][0])*100)))
+
+   if debug[7]: #Zip it
       print('\n#### Zip data ####')
       #print('\tAdd HUC')
       #waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
@@ -348,10 +363,13 @@ def main(argv):
          print(e)
       
    print('\nComplete')
+   print("Date and time: ", now.strftime('%H:%M:%S on %A, %B the %dth, %Y'))
    #print('\nCompleted in {}'.format(time.perf_counter() - startT))
    print('#####################################\n')
 
 if __name__ == "__main__":
    print('\nRunning model')
-   print('#####################################\n')
+   print('#####################################')
+   now = datetime.datetime.now()
+   print("Current date and time: ", now.strftime('%H:%M:%S on %A, %B the %dth, %Y'))
    main(sys.argv[1:])
