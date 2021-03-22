@@ -45,13 +45,13 @@ class PublicLand:
     if arcpy.Describe(inFeature).SpatialReference.Name != 102003:
       outfc = os.path.join(self.scratch, cat + 'aoi')
       if not (arcpy.Exists(outfc)):
-        print('Projecting:', inFeature)
+        print('\tProjecting:', inFeature)
         arcpy.Project_management(inFeature, outfc, arcpy.SpatialReference(102003))
         return outfc
       else:
         return outfc        
     else:
-      print('Spatial reference good')
+      print('\tSpatial reference good')
       return inFeature
 
   def clipStuff(self, inFeature, cat):
@@ -67,10 +67,10 @@ class PublicLand:
     """
     outfc = os.path.join(self.scratch, cat + 'clip')
     if arcpy.Exists(outfc):
-      print('Already have {} clipped with aoi'.format(cat))
+      print('\tAlready have {} clipped with aoi'.format(cat))
       logging.info('Already have {} clipped with aoi'.format(cat))
     else:
-      print('Clipping:', inFeature)
+      print('\tClipping:', inFeature)
       logging.info("Clipping features")
       arcpy.Clip_analysis(inFeature, self.aoi, outfc)
     return outfc  
