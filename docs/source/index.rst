@@ -16,6 +16,7 @@ Documentation for the American Black Duck Decision Support Tool
    publicland
    mergeNWIDict
    zipUp
+   datadictionary
 
 Indices and tables
 ==================

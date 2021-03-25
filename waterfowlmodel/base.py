@@ -49,23 +49,23 @@ class Waterfowlmodel:
     """
     Creates a waterfowl model object.
     
-    :param aoi: Area of interest
+    :param aoi: feature dataset of area of interest
     :type aoi: str
-    :param aoiname: Name of AOI
+    :param aoiname: Name of area of interest
     :type aoiname: str    
-    :param wetland: National Wetlands Inventory
+    :param wetland: Wetland feature dataset (e.g. National Wetland Inventory)
     :type wetland: str
     :param kcalTable: CSV file containing two columns [habitat type, kilocalorie value by hectares]
     :type kcalTable: str
     :param crosswalk: CSV file relating wetland habitat types to kcal csv table
     :type crosswalk: str
-    :param demand: NAWCA stepdown DUD objectives
+    :param demand: NAWCA stepdown Duck Use Days objectives
     :type demand: str
-    :param urban: Urban data layer
+    :param urban: Spatial dataset of impervious and built features 
     :type urban: str    
-    :param binIt: Aggregation feature
+    :param binIt: Feature dataset of aggregation features (e.g. HUC12 watersheds)
     :type binIt: str
-    :param binUnique: Unique field of aggregation feature
+    :param binUnique: Unique field of aggregation feature (e.g. HUC12 ID number)
     :type binUnique: str
     :param extra: List of extra datasets and their corresponding crossover table
     :type extra: str
@@ -95,9 +95,9 @@ class Waterfowlmodel:
 
   def projAlbers(self, inFeature, cat):
     """
-    Projects in features to Albers Equal Area (WKSID 102003)
+    Project spatial feature datasets to Albers Equal Area (WKSID 102003)
 
-    :param inFeature: Feature to project to Albers
+    :param inFeature: feature dataset to project to Albers
     :type inFeature: str
     :param cat: Category name used for unique storage and identification
     :type cat: str

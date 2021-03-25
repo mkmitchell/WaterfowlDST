@@ -1,7 +1,7 @@
 """
 runModel
 ============
-Implementation of utilizing the Waterfowlmodel class to calculate energy demand, supply, and public land area within an area of interest.
+Implementation of the Waterfowlmodel class to calculate energy demand, supply, and public land area within an area of interest.
 """
 
 import os, sys, getopt, datetime, logging, arcpy, argparse, time
