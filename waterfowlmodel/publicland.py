@@ -1,29 +1,28 @@
 """
 Module Publicland
 ===================
-Defines Public land dataset which is used to organize and handle features from NCED and PADUS.
+This module defines the public land dataset and is used to organize and handle polygon features from NCED and PADUS.
 """
 import os, sys, getopt, datetime, logging, arcpy, json, csv
 from arcpy import env
 import waterfowlmodel.SpatialJoinLargestOverlap as overlap
 
 class PublicLand:
-  """Class to store public land parameters."""
-  def __init__(self, aoi, land, name, binIt, scratch):
-    """
-    Creates a Public lands object.
+  """
+  Creates a public lands object to store public land parameters.
     
-    :param aoi: Area of interest shapefile
-    :type aoi: str
-    :param land: Public land location
-    :type land: str
-    :param name: Name of public land
-    :type name: str    
-    :param binIt: Aggregation feature
-    :type binIt: str    
-    :param scratch: Scratch geodatabase location
-    :type scratch: str
-    """
+  :param aoi: Polygon feature class denoting the model area of interest.
+  :type aoi: str
+  :param land: Polygon public land feature class.
+  :type land: str
+  :param name: Name of the public land feature class.
+  :type name: str    
+  :param binIt: Polygon feature class with the aggregation features. All data will be summarized within these polygons.
+  :type binIt: str    
+  :param scratch: Scratch geodatabase location.
+  :type scratch: str
+  """
+  def __init__(self, aoi, land, name, binIt, scratch):
     self.scratch = scratch
     self.aoi = aoi
     self.name = name
@@ -33,13 +32,13 @@ class PublicLand:
 
   def projAlbers(self, inFeature, cat):
     """
-    Projects data to Albers
+    Projects spatial data from one coordinate system to USA Contiguous Albers Equal Area Conic (ESRI: 102003)
 
-    :param inFeature: Feature to project to Albers
+    :param inFeature: Input feature class or dataset.
     :type inFeature: str
-    :param cat: Feature category
+    :param cat: Label, or category, for the projected output feature class or dataset.
     :type cat: str
-    :return outfc: Location of projected feature
+    :return outfc: Path and name of projected output feature class.
     :rtype outfc: str    
     """
     if arcpy.Describe(inFeature).SpatialReference.Name != 102003:
@@ -56,7 +55,9 @@ class PublicLand:
 
   def clipStuff(self, inFeature, cat):
     """
-    Clips wetland to the area of interest.
+    Clipping Function.
+    
+    Clips a feature dataset to the area of interest.
 
     :param inFeature: Feature to clip to AOI
     :type inFeature: str
@@ -77,9 +78,11 @@ class PublicLand:
 
   def bin(self, aggData, bins, cat):
     """
-    Calculates proportional sum aggregate based on area within specified columns of a given dataset to features from another dataset.
+    Binning Function.
+    
+    Calculates a proportional sum aggregate based on an area within the specified columns of a given dataset to features from another dataset.
 
-    :param aggData: Dataset that contains information to be aggregated spatially
+    :param aggData: Dataset that contains information to be spatially aggregated.
     :type aggData: str
     :param bins: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
     :type bins: str

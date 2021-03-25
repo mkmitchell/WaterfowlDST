@@ -1,3 +1,5 @@
+zipUp
+*****
 .. automodule:: waterfowlmodel.zipUp
     :members:
 
