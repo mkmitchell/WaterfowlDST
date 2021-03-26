@@ -3,8 +3,8 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Documentation for the American Black Duck Decision Support Tool
-====================================
+Documentation for the Waterfowl Habitat Decision Support Tool
+=============================================================
 
 .. toctree::
    :maxdepth: 2
