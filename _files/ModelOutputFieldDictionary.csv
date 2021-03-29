@@ -1,103 +1,103 @@
-Name,Alias,Type,Description
-huc12,HUC12,Text,12-digit code for the HUC12 watershed
-huc12name,Watershed,Text,"Name of HUC 12 watershed. If there's no name, defaults to the 12-digit code."
-restoregoal_ha,Restoration Goal (ha),Double,Additional habitat hectares to restore so that there's enough food (i.e. energy) to support long-term average NAWMP population objectives.
-restoregoal_80th_ha,80th Percentile of Restoration Goal (ha),Double,Additional habitat hectares to restore so that there's enough food (i.e. energy) to support long-term average NAWMP population objectives.
-protectgoal_ha,Protection Goal (ha),Double,Habitat hectares to protect so that the long-term average NAWMP population goal energy requirements are protected. 
-protectgoal_80th_ha,80th Percentile of Protection Goal (ha),Double,The 80th percentile of habitat hectares to protect so that �
-available_ha,Available Habitat Hectares,Double,"Total amount of available habitat hectares, excluding built or impervious area, and existing habitat."
-protected_ha,Protected Hectares,Double,Total acres protected as easements or preserves in the watershed.
-protectedhabitat_ha,Protected Habitat Hectares,Double,Total acres of dabbling duck habitat protected in the watershed.
-huc12_ha,Watershed Hectares,Double,Total hectares in the watershed.
-urban_ha,Urban Hectares,Double,Total urban hectares in the watershed.
-tothabitat_ha,Total Habitat Hectares,Double,Total habitat hectares in the watershed.
-tothabitat_kcal,Total Habitat Energy (kcal),Double,Total energy (kcal) in all habitat types within the watershed.(Energy Supply / Availability)
-protected_kcal,Protected Habitat Energy,Double,Total kilocalories of energy protected by fee and easements as of December 2020? 
-lta_demand_kcal,Long-Term Average Energy Demand (kcal),Double,Average daily energy demand from dabbling ducks in the watershed.
-lta_demand_kcal,Long-Term Average Energy Demand (kcal),Double,Average daily energy demand from dabbling ducks in the watershed.
-demand_80th_kcal,80th Percentile Energy Demand (kcal),Double,The 80th percentile of the long-term average daily energy demand from dabbline ducks in the watershed.
-demand_80th_kcal,80th Percentile Energy Demand (kcal),Double,The 80th percentile of the long-term average daily energy demand from dabbline ducks in the watershed.
-surpdef_kcal,Long-Term Average Energy Surplus or Deficit (kcal),Double,Difference between Long Term Average Energy Demand and Protected Habitat Energy
-surpdef_80th_kcal,80th Percentile Energy Surplus or Deficit (kcal),Double,The 80th Percentile Surplus or Deficit
-lta_nrgprotrq_kcal,Long-Term Average Energy Protection Needed (kcal),Double,Total energy demand minus total protected energy in the watershed.
-nrgprotrq_80th_ kcal,80th Percentile Energy Protection Needed (kcal),Double,The 80th Percentile of total energy demand minus total protected energy.
-wtMean_kcal_per_ha,Weighted mean kcal/ha,Double,Weighted average kcal/ha for all habitats in the watershed
-lta_popobj,Long-Term Average Population Objective,Double,"Average daily number of dabbling ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-lta_popobj,Long-Term Average Population Objective,Double,"Average daily number of dabbling ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-popobj_80th,80th Percentile Population Objective,Double,"The 80th percentile of average daily number of dabbling ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-popobj_80th,80th Percentile Population Objective,Double,"The 80th percentile of average daily number of dabbling ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-lta_dud,Long-Term Average Duck Use Days,Double,Average daily number of duck use days that are currently supported by existing habitats in the watershed.
-lta_dud,Long-Term Average Duck Use Days,Double,Average daily number of duck use days that are currently supported by existing habitats in the watershed.
-dud_80th,80th Percentile Duck Use Days,Double,The 80th percentile of average daily number of duck use days that are currently supported by existing habitats in the watershed. This is a stretch goal.
-dud_80th,80th Percentile Duck Use Days,Double,The 80th percentile of average daily number of duck use days that are currently supported by existing habitats in the watershed. This is a stretch goal.
-abdu_popobj,American Black Duck Population Objective,Double,"Average daily number of American black ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-amwi_popobj,American Wigeon Population Objective,Double,"Average daily number of American Wigeons that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-bwte_popobj,Blue-winged teal Population Objective,Double,"Average daily number of Blue-winged teals that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-gadw_popobj,Gadwall Population Objective,Double,"Average daily number of Gadwells that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-agwt_popobj,Green-winged teal Population Objective,Double,"Average daily number of Green-winged teals that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-mall_popobj,Mallard Population Objective,Double,"Average daily number of Mallards that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-nopi_popobj,Northern Pintail Population Objective,Double,"Average daily number of Northern Pintails that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-nsho_popobj,Northern Shoveler Population Objective,Double,"Average daily number of Northern Shovelers that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-wodu_popobj,Wood duck Population Objective,Double,"Average daily number of Wood ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed."
-abdu_dud,American Black Duck Use Days,Double,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.
-amwi_dud,American Wigeon Duck Use Days,Double,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.
-bwte_dud,Blue-winged teal Duck Use Days,Double,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.
-gadw_dud,Gadwall Duck Use Days,Double,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.
-agwt_dud,Green-winged teal Duck Use Days,Double,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.
-mall_dud,Mallard Duck Use Days,Double,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.
-nopi_dud,Northern Pintail Duck Use Days,Double,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.
-nsho_dud,Northern Shoveler Duck Use Days,Double,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.
-wodu_dud,Wood duck Duck Use Days,Double,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.
-abdu_popobj_80,American Black Duck 80th Percentile Population Objective,Double,
-amwi_popobj_80,American Wigeon 80th Percentile Population Objective,Double,
-bwte_popobj_80,Blue-winged teal 80th Percentile Population Objective,Double,
-gadw_popobj_80,Gadwall 80th Percentile Population Objective,Double,
-agwt_popobj_80,Green-winged teal 80th Percentile Population Objective,Double,
-mall_popobj_80,Mallard 80th Percentile Population Objective,Double,
-nopi_popobj_80,Northern Pintail 80th Percentile Population Objective,Double,
-nsho_popobj_80,Northern Shoveler 80th Percentile Population Objective,Double,
-wodu_popobj_80,Wood duck 80th Percentile Population Objective,Double,
-abdu_dud80,American Black 80th Percentile Duck Use Days,Double,
-amwi_dud80,American Wigeon 80th Percentile Duck Use Days,Double,
-bwte_dud80,Blue-winged teal 80th Percentile Duck Use Days,Double,
-gadw_dud80,Gadwall 80th Percentile Duck Use Days,Double,
-agwt_dud80,Green-winged teal 80th Percentile Duck Use Days,Double,
-mall_dud80,Mallard 80th Percentile Duck Use Days,Double,
-nopi_dud80,Northern Pintail 80th Percentile Duck Use Days,Double,
-nsho_dud80,Northern Shoveler 80th Percentile Duck Use Days,Double,
-wodu_dud80,Wood duck 80th Percentile Duck Use Days,Double,
-abdu_lta_demand_kcal,American Black Duck Long-Term Average Energy Demand (kcal),Double,
-amwi_lta_demand_kcal,American Wigeon Long-Term Average Energy Demand (kcal),Double,
-bwte_lta_demand_kcal,Blue-winged teal Long-Term Average Energy Demand (kcal),Double,
-gadw_lta_demand_kcal,Gadwall Long-Term Average Energy Demand (kcal),Double,
-agwt_lta_demand_kcal,Green-winged teal Long-Term Average Energy Demand (kcal),Double,
-mall_lta_demand_kcal,Mallard Long-Term Average Energy Demand (kcal),Double,
-nopi_lta_demand_kcal,Northern Pintail Long-Term Average Energy Demand (kcal),Double,
-nsho_lta_demand_kcal,Northern Shoveler Long-Term Average Energy Demand (kcal),Double,
-wodu_lta_demand_kcal,Wood duck Long-Term Average Energy Demand (kcal),Double,
-abdu_demand_80th_kcal,American Black Duck 80th Percentile Energy Demand (kcal),Double,
-amwi_demand_80th_kcal,American Wigeon 80th Percentile Energy Demand (kcal),Double,
-bwte_demand_80th_kcal,Blue-winged teal 80th Percentile Energy Demand (kcal),Double,
-gadw_demand_80th_kcal,Gadwall 80th Percentile Energy Demand (kcal),Double,
-agwt_demand_80th_kcal,Green-winged teal 80th Percentile Energy Demand (kcal),Double,
-mall_demand_80th_kcal,Mallard 80th Percentile Energy Demand (kcal),Double,
-nopi_demand_80th_kcal,Northern Pintail 80th Percentile Energy Demand (kcal),Double,
-nsho_demand_80th_kcal,Northern Shoveler 80th Percentile Energy Demand (kcal),Double,
-wodu_demand_80th_kcal,Wood duck 80th Percentile Energy Demand (kcal),Double,
-s_himarsh,High Salt Marsh,Double,Known hectares of High Salt Marsh (ha) in the watershed.
-s_lomarsh,Low Salt Marsh,Double,Known hectares of Low Salt Marsh (ha) in the watershed.
-f_marsh,Fresh Marsh,Double,Known hectares of Fresh Marsh (ha) in the watershed.
-fm_marsh,Managed Fresh Marsh,Double,Known hectares of Managed Fresh Marsh (ha) in the watershed.
-fm_shallowopen,Managed Fresh Shallow Open Water,Double,Known hectares of Managed Fresh Shallow Open Water (ha) in the watershed.
-f_shallowopen,Fresh Shallow Open Water,Double,Known hectares of Fresh Shallow Open Water (ha) in the watershed.
-f_shores,Fresh Shores,Double,Known hectares of Fresh Shores (ha) in the watershed.
-s_mudflat,Mudflat Salt,Double,Known hectares of Mudflat Salt (ha) in the watershed.
-s_nd_marsh,Salt Marsh (Non-dominant),Double,Known hectares of Salt Marsh (Non-dominant) (ha) in the watershed.
-f_deepwater,Deepwater Fresh,Double,Known hectares of Deepwater Fresh (ha) in the watershed.
-subtidal,Subtidal,Double,Known hectares of Subtidal (ha) in the watershed.
-f_woody,Freshwater Woody,Double,Known hectares of Freshwater Woody (ha) in the watershed.
-f_aquaticbed,Freshwater Aquatic Bed,Double,Known hectares of Freshwater Aquatic Bed (ha) in the watershed.
-s_aquaticbedintertidal,Saltwater Aquatic Bed Intertidal,Double,Known hectares of Saltwater Aquatic Bed Intertidal (ha) in the watershed.
-s_woody,Saltwater Woody,Double,Known hectares of Saltwater Woody (ha) in the watershed.
-phragmites,Phragmites,Double,Known hectares of Phragmites (ha) in the watershed.
-fm_aquaticbed,Managed Freshwater Aquatic Bed,Double,Known hectares of Managed Freshwater Aquatic Bed (ha) in the watershed.
+Name,Alias,Description,Type
+huc12,HUC12,12-digit code for the HUC12 watershed,Text
+huc12name,Watershed,"Name of HUC 12 watershed. If there's no name, defaults to the 12-digit code.",Text
+restoregoal_ha,Restoration Goal (ha),Additional habitat hectares to restore so that there's enough food (i.e. energy) to support long-term average NAWMP population objectives.,Double
+restoregoal_80th_ha,80th Percentile of Restoration Goal (ha),Additional habitat hectares to restore so that there's enough food (i.e. energy) to support long-term average NAWMP population objectives.,Double
+protectgoal_ha,Protection Goal (ha),Habitat hectares to protect so that the long-term average NAWMP population goal energy requirements are protected. ,Double
+protectgoal_80th_ha,80th Percentile of Protection Goal (ha),The 80th percentile of habitat hectares to protect so that �,Double
+available_ha,Available Habitat Hectares,"Total amount of available habitat hectares, excluding built or impervious area, and existing habitat.",Double
+protected_ha,Protected Hectares,Total acres protected as easements or preserves in the watershed.,Double
+protectedhabitat_ha,Protected Habitat Hectares,Total acres of dabbling duck habitat protected in the watershed.,Double
+huc12_ha,Watershed Hectares,Total hectares in the watershed.,Double
+urban_ha,Urban Hectares,Total urban hectares in the watershed.,Double
+tothabitat_ha,Total Habitat Hectares,Total habitat hectares in the watershed.,Double
+tothabitat_kcal,Total Habitat Energy (kcal),Total energy (kcal) in all habitat types within the watershed.(Energy Supply / Availability),Double
+protected_kcal,Protected Habitat Energy,Total kilocalories of energy protected by fee and easements as of December 2020? ,Double
+lta_demand_kcal,Long-Term Average Energy Demand (kcal),Average daily energy demand from dabbling ducks in the watershed.,Double
+lta_demand_kcal,Long-Term Average Energy Demand (kcal),Average daily energy demand from dabbling ducks in the watershed.,Double
+demand_80th_kcal,80th Percentile Energy Demand (kcal),The 80th percentile of the long-term average daily energy demand from dabbline ducks in the watershed.,Double
+demand_80th_kcal,80th Percentile Energy Demand (kcal),The 80th percentile of the long-term average daily energy demand from dabbline ducks in the watershed.,Double
+surpdef_kcal,Long-Term Average Energy Surplus or Deficit (kcal),Difference between Long Term Average Energy Demand and Protected Habitat Energy,Double
+surpdef_80th_kcal,80th Percentile Energy Surplus or Deficit (kcal),The 80th Percentile Surplus or Deficit,Double
+lta_nrgprotrq_kcal,Long-Term Average Energy Protection Needed (kcal),Total energy demand minus total protected energy in the watershed.,Double
+nrgprotrq_80th_kcal,80th Percentile Energy Protection Needed (kcal),The 80th Percentile of total energy demand minus total protected energy.,Double
+wtMean_kcal_per_ha,Weighted mean kcal/ha,Weighted average kcal/ha for all habitats in the watershed,Double
+lta_popobj,Long-Term Average Population Objective,"Average daily number of dabbling ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+lta_popobj,Long-Term Average Population Objective,"Average daily number of dabbling ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+popobj_80th,80th Percentile Population Objective,"The 80th percentile of average daily number of dabbling ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+popobj_80th,80th Percentile Population Objective,"The 80th percentile of average daily number of dabbling ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+lta_dud,Long-Term Average Duck Use Days,Average daily number of duck use days that are currently supported by existing habitats in the watershed.,Double
+lta_dud,Long-Term Average Duck Use Days,Average daily number of duck use days that are currently supported by existing habitats in the watershed.,Double
+dud_80th,80th Percentile Duck Use Days,The 80th percentile of average daily number of duck use days that are currently supported by existing habitats in the watershed. This is a stretch goal.,Double
+dud_80th,80th Percentile Duck Use Days,The 80th percentile of average daily number of duck use days that are currently supported by existing habitats in the watershed. This is a stretch goal.,Double
+abdu_popobj,American Black Duck Population Objective,"Average daily number of American black ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+amwi_popobj,American Wigeon Population Objective,"Average daily number of American Wigeons that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+bwte_popobj,Blue-winged teal Population Objective,"Average daily number of Blue-winged teals that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+gadw_popobj,Gadwall Population Objective,"Average daily number of Gadwells that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+agwt_popobj,Green-winged teal Population Objective,"Average daily number of Green-winged teals that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+mall_popobj,Mallard Population Objective,"Average daily number of Mallards that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+nopi_popobj,Northern Pintail Population Objective,"Average daily number of Northern Pintails that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+nsho_popobj,Northern Shoveler Population Objective,"Average daily number of Northern Shovelers that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+wodu_popobj,Wood duck Population Objective,"Average daily number of Wood ducks that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.",Double
+abdu_dud,American Black Duck Use Days,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.,Double
+amwi_dud,American Wigeon Duck Use Days,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.,Double
+bwte_dud,Blue-winged teal Duck Use Days,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.,Double
+gadw_dud,Gadwall Duck Use Days,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.,Double
+agwt_dud,Green-winged teal Duck Use Days,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.,Double
+mall_dud,Mallard Duck Use Days,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.,Double
+nopi_dud,Northern Pintail Duck Use Days,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.,Double
+nsho_dud,Northern Shoveler Duck Use Days,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.,Double
+wodu_dud,Wood duck Duck Use Days,Average daily number of duck use days for this species that are currently supported by existing habitats in the watershed.,Double
+abdu_popobj_80,American Black Duck 80th Percentile Population Objective,,Double
+amwi_popobj_80,American Wigeon 80th Percentile Population Objective,,Double
+bwte_popobj_80,Blue-winged teal 80th Percentile Population Objective,,Double
+gadw_popobj_80,Gadwall 80th Percentile Population Objective,,Double
+agwt_popobj_80,Green-winged teal 80th Percentile Population Objective,,Double
+mall_popobj_80,Mallard 80th Percentile Population Objective,,Double
+nopi_popobj_80,Northern Pintail 80th Percentile Population Objective,,Double
+nsho_popobj_80,Northern Shoveler 80th Percentile Population Objective,,Double
+wodu_popobj_80,Wood duck 80th Percentile Population Objective,,Double
+abdu_dud80,American Black 80th Percentile Duck Use Days,,Double
+amwi_dud80,American Wigeon 80th Percentile Duck Use Days,,Double
+bwte_dud80,Blue-winged teal 80th Percentile Duck Use Days,,Double
+gadw_dud80,Gadwall 80th Percentile Duck Use Days,,Double
+agwt_dud80,Green-winged teal 80th Percentile Duck Use Days,,Double
+mall_dud80,Mallard 80th Percentile Duck Use Days,,Double
+nopi_dud80,Northern Pintail 80th Percentile Duck Use Days,,Double
+nsho_dud80,Northern Shoveler 80th Percentile Duck Use Days,,Double
+wodu_dud80,Wood duck 80th Percentile Duck Use Days,,Double
+abdu_lta_demand_kcal,American Black Duck Long-Term Average Energy Demand (kcal),,Double
+amwi_lta_demand_kcal,American Wigeon Long-Term Average Energy Demand (kcal),,Double
+bwte_lta_demand_kcal,Blue-winged teal Long-Term Average Energy Demand (kcal),,Double
+gadw_lta_demand_kcal,Gadwall Long-Term Average Energy Demand (kcal),,Double
+agwt_lta_demand_kcal,Green-winged teal Long-Term Average Energy Demand (kcal),,Double
+mall_lta_demand_kcal,Mallard Long-Term Average Energy Demand (kcal),,Double
+nopi_lta_demand_kcal,Northern Pintail Long-Term Average Energy Demand (kcal),,Double
+nsho_lta_demand_kcal,Northern Shoveler Long-Term Average Energy Demand (kcal),,Double
+wodu_lta_demand_kcal,Wood duck Long-Term Average Energy Demand (kcal),,Double
+abdu_demand_80th_kcal,American Black Duck 80th Percentile Energy Demand (kcal),,Double
+amwi_demand_80th_kcal,American Wigeon 80th Percentile Energy Demand (kcal),,Double
+bwte_demand_80th_kcal,Blue-winged teal 80th Percentile Energy Demand (kcal),,Double
+gadw_demand_80th_kcal,Gadwall 80th Percentile Energy Demand (kcal),,Double
+agwt_demand_80th_kcal,Green-winged teal 80th Percentile Energy Demand (kcal),,Double
+mall_demand_80th_kcal,Mallard 80th Percentile Energy Demand (kcal),,Double
+nopi_demand_80th_kcal,Northern Pintail 80th Percentile Energy Demand (kcal),,Double
+nsho_demand_80th_kcal,Northern Shoveler 80th Percentile Energy Demand (kcal),,Double
+wodu_demand_80th_kcal,Wood duck 80th Percentile Energy Demand (kcal),,Double
+s_himarsh,High Salt Marsh,Known hectares of High Salt Marsh (ha) in the watershed.,Double
+s_lomarsh,Low Salt Marsh,Known hectares of Low Salt Marsh (ha) in the watershed.,Double
+f_marsh,Fresh Marsh,Known hectares of Fresh Marsh (ha) in the watershed.,Double
+fm_marsh,Managed Fresh Marsh,Known hectares of Managed Fresh Marsh (ha) in the watershed.,Double
+fm_shallowopen,Managed Fresh Shallow Open Water,Known hectares of Managed Fresh Shallow Open Water (ha) in the watershed.,Double
+f_shallowopen,Fresh Shallow Open Water,Known hectares of Fresh Shallow Open Water (ha) in the watershed.,Double
+f_shores,Fresh Shores,Known hectares of Fresh Shores (ha) in the watershed.,Double
+s_mudflat,Mudflat Salt,Known hectares of Mudflat Salt (ha) in the watershed.,Double
+s_nd_marsh,Salt Marsh (Non-dominant),Known hectares of Salt Marsh (Non-dominant) (ha) in the watershed.,Double
+f_deepwater,Deepwater Fresh,Known hectares of Deepwater Fresh (ha) in the watershed.,Double
+subtidal,Subtidal,Known hectares of Subtidal (ha) in the watershed.,Double
+f_woody,Freshwater Woody,Known hectares of Freshwater Woody (ha) in the watershed.,Double
+f_aquaticbed,Freshwater Aquatic Bed,Known hectares of Freshwater Aquatic Bed (ha) in the watershed.,Double
+s_aquaticbedintertidal,Saltwater Aquatic Bed Intertidal,Known hectares of Saltwater Aquatic Bed Intertidal (ha) in the watershed.,Double
+s_woody,Saltwater Woody,Known hectares of Saltwater Woody (ha) in the watershed.,Double
+phragmites,Phragmites,Known hectares of Phragmites (ha) in the watershed.,Double
+fm_aquaticbed,Managed Freshwater Aquatic Bed,Known hectares of Managed Freshwater Aquatic Bed (ha) in the watershed.,Double
