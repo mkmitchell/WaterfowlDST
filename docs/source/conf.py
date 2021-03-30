@@ -18,13 +18,12 @@ sys.path.insert(0, os.path.abspath('../..'))
 
 # -- Project information -----------------------------------------------------
 
-project = 'American Black Duck and other Dabbling Duck Non-Breeding Habitat Priorities'
+project = 'Waterfowl Habitat Decision Support Tool'
 copyright = '2021, Ducks Unlimited'
 author = 'Ducks Unlimited'
 
 # The full version, including alpha/beta/rc tags
 release = '1.0'
-
 
 # -- General configuration ---------------------------------------------------
 

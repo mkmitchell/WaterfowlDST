@@ -10,13 +10,14 @@ Documentation for the Waterfowl Habitat Decision Support Tool
    :maxdepth: 2
    :caption: Contents:
 
+   datadictionary
    base
    runModel
    dataset
    publicland
    mergeNWIDict
    zipUp
-   datadictionary
+   
 
 Indices and tables
 ==================
