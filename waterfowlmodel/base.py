@@ -374,7 +374,7 @@ class Waterfowlmodel:
     fields = self.binUnique[1] +" MAX; BinHA SUM; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal MEAN;"
     if arcpy.Exists(os.path.join(self.scratch, 'AllDataBin')):
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBin'))
-    #print(fields)
+    print(fields)
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),'BinHA'))>0:
       arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBintemp'), 'BinHA', "DOUBLE", 9, 2, "", "Hectares")      
     arcpy.CalculateGeometryAttributes_management(os.path.join(self.scratch, 'AllDataBintemp'), "BinHA AREA", area_unit="HECTARES")
@@ -397,7 +397,7 @@ class Waterfowlmodel:
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_X80SurpDef', 'X80SurpDef', 'X80 Energy Surplus or Deficit (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MEAN_wtMeankcal', 'wtMeankcal', 'Weighted mean (kcal)')
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'AvailHA', "DOUBLE", 9, 2, "", "Potentiallyl Available Habitat Hectares (Bin HA - Urban HA - Protected HA)")
-    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='AvailHA', expression="!" + self.binUnique[0] + "HA! - !UrbanHA!" - "!ProtHA!", expression_type="PYTHON_9.3", code_block="")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='AvailHA', expression="!" + self.binUnique[0] + "HA! - !UrbanHA! - !ProtHA!", expression_type="PYTHON_9.3", code_block="")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'LTANrgProtRq', "DOUBLE", 9, 2, "", "LTA Energy Protection Needed (Habitat Energy demand - protected habitat energy) (kcal)")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'X80NrgProtRq', "DOUBLE", 9, 2, "", "X80 Energy Protection Needed (Habitat Energy demand - protected habitat energy) (kcal)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='LTANrgProtRq', expression="!TLTADemand! - !ProtHabNrg! if !TLTADemand! - !ProtHabNrg! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
@@ -529,6 +529,7 @@ class Waterfowlmodel:
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80PopObj', expression="!aggByField" + cat + "unionhucfips.X80PopObj! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80Demand', expression="!aggByField" + cat + "unionhucfips.X80Demand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")      
       print('\tDissolve and alter field names')
+      print(self.binUnique)
       arcpy.Dissolve_management(in_features=outLayer + 'unionhucfips', out_feature_class=outLayer+'dissolveHUC', dissolve_field=self.binUnique, statistics_fields="LTADUD SUM;LTAPopObj SUM;LTADemand SUM;X80DUD SUM;X80PopObj SUM;X80Demand SUM", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTADUD', 'LTADUD', 'Long term average Duck use days')
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTAPopObj', 'LTAPopObj', 'Long term average Population objective')

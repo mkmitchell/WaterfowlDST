@@ -242,9 +242,8 @@ def main(argv):
       allEnergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.mergedenergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
       arcpy.CopyFeatures_management(allEnergy, dst.mergedenergy + 'Selection')
       dst.mergedenergy = dst.mergedenergy + 'Selection'
-      pdClean = dst.pandasClean(aoiworkspace, dst.mergedenergy)
+      #pdClean = dst.pandasClean(aoiworkspace, dst.mergedenergy)
       dst.mergedenergy = dst.cleanMe(dst.mergedenergy)
-      sys.exit()
       dst.energysupply = dst.aggproportion(dst.binIt, dst.mergedenergy, "OBJECTID", ["avalNrgy", "CalcHA"], [dst.binUnique], dst.scratch, "supplyenergy")
       if not len(arcpy.ListFields(dst.energysupply,'THabNrg'))>0:
          arcpy.AlterField_management(dst.energysupply, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
@@ -263,7 +262,7 @@ def main(argv):
       print('\n#### ENERGY DEMAND ####')
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
       if arcpy.management.GetCount(selectDemand)[0] > "0":
-         arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
+         #arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
          demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
          mergedAll, wtmarray = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
          dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
@@ -326,6 +325,8 @@ def main(argv):
       dst.urban = os.path.join(dst.scratch, 'aggtourban')
 
    print('\n#### Merging all the data for output ####')
+   print(dst.energysupply)
+   print(dst.demand)
    mergebin.append(dst.unionEnergy(dst.energysupply, dst.demand)) #Energy supply and demand
    mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
    mergebin.append(dst.protectedEnergy) #Protected energy
