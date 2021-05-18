@@ -91,6 +91,7 @@ class Waterfowlmodel:
     self.EnergySurplusDeficit = os.path.join(self.scratch, "BinnedEnergyComparison")
     self.energysupply = os.path.join(self.scratch, "EnergySupply")
     self.fieldtable = fieldtable
+    self.origDemand = self.demand
     env.workspace = scratch
 
   def projAlbers(self, inFeature, cat):
@@ -547,7 +548,8 @@ class Waterfowlmodel:
 
   def summarizebySpecies(self, demand, scratch, binIt, mergedAll, fieldtable):
     """
-    Aggregates species specific energy demand on a smaller scale to multple larger scale features.  Example: County to HUC12.
+    Aggregates species specific energy demand on a smaller scale to multiple larger scale features.  Example: County to HUC12.
+    Requires original demand layer.
 
     :param demand: Energy demand layer
     :type demand: str
@@ -566,27 +568,47 @@ class Waterfowlmodel:
     # list of feature classes that will be created.
     speciesFCList = []
     # species list
+    
     fieldtable["species"]=fieldtable["species"].apply(str)
     speciesList = [f.upper() for f in fieldtable.species.unique() if f.upper()!='ALL']
+
+    ''' CHECK IF THE FIELD AND VALUES EXIST'''
+
+    print("Field Table: ", speciesList)
+
+    def unique_values(table, field):  ##uses list comprehension
+      with arcpy.da.SearchCursor(table, [field]) as cursor:
+        return sorted({row[0] for row in cursor})
+
+    demandSpeciesList = unique_values(demand, 'species')
+    print("Demand Table: ", demandSpeciesList)
+
+    ''' DONE CHECK '''
+
     for sp in speciesList:
       # filter demand layer to only this species...
+      where_clause="species = '{}'".format(sp)
+      print(where_clause)
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
-      # if records for this species exist...
-      if arcpy.management.GetCount(selectDemand)[0] > "0":
+      # if records for this species exist..
+      if int(arcpy.management.GetCount(selectDemand)[0]) > 0:
         # create a copy of the demand layer for this species
-        arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp)))
         demandSelected = os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp))
+        arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, demandSelected))
         print("\tAggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
         demandbySpecies = Waterfowlmodel.aggByField(self, mergedAll, scratch, demandSelected, binIt, 'energydemand_{}'.format(sp))
+        print("Records in aggbyfield output", int(arcpy.GetCount_management(demandbySpecies)[0]))
         outputFields = [f.name for f in arcpy.ListFields(demandbySpecies)]
-        dfSpecies = fieldtable[fieldtable['species'] == sp]
+        print("Current output fields", outputFields)
+
+        dfSpecies = fieldtable[fieldtable['species'].isin([sp, sp.lower(), sp.upper()])]
         print("\tNumber of rows in species table: ", len(dfSpecies))
         print("\tFixing field names to be species-specific for ", sp)
         for i, row in dfSpecies.iterrows():
           if row['original_field_name'] in outputFields:
             arcpy.AlterField_management(demandbySpecies, field=row['original_field_name'], new_field_name=row['field_name'],new_field_alias=row['field_alias'])
         speciesFCList.append(demandbySpecies)
-      elif arcpy.management.GetCount(selectDemand)[0] == "0":
+      elif int(arcpy.management.GetCount(selectDemand)[0]) == 0:
         print('\tNo records with {} species. Not calculated'.format(sp))
     print("\tMerging all species-level data into one layer called demandbySpecies")
     arcpy.management.Merge(speciesFCList, os.path.join(scratch, 'demandbySpecies'))
@@ -736,19 +758,21 @@ class Waterfowlmodel:
     wtmarray = arcpy.da.FeatureClassToNumPyArray(outLayer, ['avalNrgy','CLASS', 'CalcHA', self.binUnique[0], self.binUnique[1], 'kcal'], null_value=0)
     return outLayer, wtmarray
 
-  def pctHabitatType(self, binUnique):
+  def pctHabitatType(self, binUnique, wtmarray):
     """
     Calculates proportion of habitat type by bin feature.
     """
     print('\tConverting to pandas')
-    df = pd.read_csv(os.path.join(os.path.dirname(self.scratch),'tbl.csv'), usecols=['avalNrgy','CLASS', 'CalcHA', binUnique, 'kcal'], dtype={'avalNrgy': np.float, 'CLASS':np.string_,'CalcHA':np.float, binUnique:np.string_})
+    #df = pd.read_csv(os.path.join(os.path.dirname(self.scratch),'tbl.csv'), usecols=['avalNrgy','CLASS', 'CalcHA', binUnique, 'kcal'], dtype={'avalNrgy': np.float, 'CLASS':np.string_,'CalcHA':np.float, binUnique:np.string_})
+    df = pd.DataFrame(wtmarray)
     df = df.dropna(subset=['CLASS', binUnique, 'kcal'])
     df1 = df.groupby([binUnique]).CalcHA.sum()
     dfmerge = pd.merge(df, df1, on=[binUnique,binUnique],how='left')
     dfmerge['pct'] = (dfmerge['CalcHA_x']/dfmerge['CalcHA_y'])*100
     outdf = dfmerge.pivot_table(index=binUnique, columns='CLASS', values='pct', aggfunc=np.sum)
     outdf = outdf.fillna(0)
-    #print(outdf.head())
+    outdf = outdf.drop(columns = ['', 'nan'])
+    print(outdf.head())
     #print(outdf.sum(axis=1))
     badfields = []
     for field in self.kcalList:
@@ -764,6 +788,7 @@ class Waterfowlmodel:
     outnp = np.array(np.rec.fromrecords(outdf))
     names = outdf.dtypes.index.tolist()
     outnp.dtype.names = tuple(names)
+    print(names)
     arcpy.env.overwriteOutput = True
     if arcpy.Exists(os.path.join(self.scratch, 'HabitatPct')):
       arcpy.Delete_management(os.path.join(self.scratch, 'HabitatPct'))
