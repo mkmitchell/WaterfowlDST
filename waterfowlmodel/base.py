@@ -6,6 +6,7 @@ Defines Waterfowlmodel class which is used for storing parameters and doing calc
 import os, sys, getopt, datetime, logging, arcpy, json, csv, re, time
 from functools import wraps
 from arcpy import env
+from arcpy.arcobjects.arcobjects import SpatialReference
 import pandas as pd
 import numpy as np
 from arcgis.features import FeatureLayer, GeoAccessor, GeoSeriesAccessor
@@ -546,7 +547,7 @@ class Waterfowlmodel:
       print(exc_type, fname, exc_tb.tb_lineno)
       sys.exit()
 
-  def summarizebySpecies(self, demand, scratch, binIt, mergedAll, fieldtable):
+  def summarizebySpecies(self, demand, scratch, binIt, binUnique, mergedAll, fieldtable):
     """
     Aggregates species specific energy demand on a smaller scale to multiple larger scale features.  Example: County to HUC12.
     Requires original demand layer.
@@ -563,16 +564,20 @@ class Waterfowlmodel:
     :return: Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply
     :rtype:  str
     """
-    # read in csv
+
+    # Create a feature class with all the bin unique values
+    spRef = arcpy.Describe(mergedAll).spatialReference
+    Joined_demandbySpecies = os.path.join(scratch, 'demandbySpecies')
+    arcpy.CreateFeatureclass_management(scratch, "demandbySpecies", geometry_type='POLYGON', spatial_reference=spRef)
+    arcpy.AddField_management(Joined_demandbySpecies, binUnique, "TEXT")
+    arcpy.Append_management(binIt, Joined_demandbySpecies, "NO_TEST")
+
+    # read in csv that contains the crosswalk for all the field names
     fieldtable = pd.read_csv(fieldtable, encoding='unicode_escape')
-    # list of feature classes that will be created.
-    speciesFCList = []
+
     # species list
-    
     fieldtable["species"]=fieldtable["species"].apply(str)
     speciesList = [f.upper() for f in fieldtable.species.unique() if f.upper()!='ALL']
-
-    ''' CHECK IF THE FIELD AND VALUES EXIST'''
 
     print("Field Table: ", speciesList)
 
@@ -583,13 +588,12 @@ class Waterfowlmodel:
     demandSpeciesList = unique_values(demand, 'species')
     print("Demand Table: ", demandSpeciesList)
 
-    ''' DONE CHECK '''
-
     for sp in speciesList:
       # filter demand layer to only this species...
       where_clause="species = '{}'".format(sp)
       print(where_clause)
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
+      
       # if records for this species exist..
       if int(arcpy.management.GetCount(selectDemand)[0]) > 0:
         # create a copy of the demand layer for this species
@@ -607,11 +611,13 @@ class Waterfowlmodel:
         for i, row in dfSpecies.iterrows():
           if row['original_field_name'] in outputFields:
             arcpy.AlterField_management(demandbySpecies, field=row['original_field_name'], new_field_name=row['field_name'],new_field_alias=row['field_alias'])
-        speciesFCList.append(demandbySpecies)
+            fds = [f.name for f in arcpy.ListFields(demandbySpecies)]
+            print(fds)
+            fdList = fds[6:12]
+            fdlist.append('species')
+        arcpy.JoinField_management(Joined_demandbySpecies, binUnique, demandbySpecies, binUnique, fields=[fdList])  
       elif int(arcpy.management.GetCount(selectDemand)[0]) == 0:
         print('\tNo records with {} species. Not calculated'.format(sp))
-    print("\tMerging all species-level data into one layer called demandbySpecies")
-    arcpy.management.Merge(speciesFCList, os.path.join(scratch, 'demandbySpecies'))
 
   @report_time
   def calcProtected(self, mergedenergy, protectedMerge, protectedEnergy):

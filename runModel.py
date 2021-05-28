@@ -269,9 +269,9 @@ def main(argv):
       dst.demand = os.path.join(dst.scratch, 'aggByFieldenergydemanddissolveHUC')
       dst.origDemand = demand.inData
 
-   if debug[2]: #Species proportion
+   if debug[2]: # Species proportion,use the original demand layer, and not the derived demand layer that only includes summed values for all species.
       print('\n#### ENERGY DEMAND BY SPECIES ####')
-      demandSp = dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
+      demandSp = dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
 
    if debug[3]: #Public lands
       print('\n#### PUBLIC LANDS ####')
