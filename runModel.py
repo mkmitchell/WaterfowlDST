@@ -244,7 +244,8 @@ def main(argv):
       dst.mergedenergy = dst.mergedenergy + 'Selection'
       #pdClean = dst.pandasClean(aoiworkspace, dst.mergedenergy)
       dst.mergedenergy = dst.cleanMe(dst.mergedenergy)
-      dst.energysupply = dst.aggproportion(dst.binIt, dst.mergedenergy, "OBJECTID", ["avalNrgy", "CalcHA"], [dst.binUnique], dst.scratch, "supplyenergy")
+      print(dst.binUnique)
+      dst.energysupply = dst.aggproportion(dst.binIt, dst.mergedenergy, "OBJECTID", ["avalNrgy", "CalcHA"], dst.binUnique, dst.scratch, "supplyenergy")
       if not len(arcpy.ListFields(dst.energysupply,'THabNrg'))>0:
          arcpy.AlterField_management(dst.energysupply, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
       if not len(arcpy.ListFields(dst.energysupply,'THabHA'))>0:

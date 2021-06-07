@@ -376,9 +376,14 @@ class Waterfowlmodel:
     if arcpy.Exists(os.path.join(self.scratch, 'AllDataBin')):
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBin'))
     print(fields)
+    if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),self.binUnique[1]))>0:
+      print(self.binUnique[1] + " doesn't exist.  Need to append")
+      addHuc = arcpy.da.FeatureClassToNumPyArray(self.binIt, [self.binUnique[0], self.binUnique[1]], null_value='')
+      arcpy.da.ExtendTable(os.path.join(self.scratch, 'AllDataBintemp'), self.binUnique[0], addHuc, self.binUnique[0])
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),'BinHA'))>0:
       arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBintemp'), 'BinHA', "DOUBLE", 9, 2, "", "Hectares")      
     arcpy.CalculateGeometryAttributes_management(os.path.join(self.scratch, 'AllDataBintemp'), "BinHA AREA", area_unit="HECTARES")
+    print([f.name for f in arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'))])
     arcpy.Dissolve_management(in_features=os.path.join(self.scratch, 'AllDataBintemp'), out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_'+ self.binUnique[1], 'name', self.binUnique[0] + ' Name')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_BinHA', self.binUnique[0]+ 'HA', self.binUnique[0] +' Hectares')
