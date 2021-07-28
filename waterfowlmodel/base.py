@@ -569,12 +569,15 @@ class Waterfowlmodel:
     :return: Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply
     :rtype:  str
     """
-
+    print(demand)
+    print(binIt)
+    print(binUnique)
     # Create a feature class with all the bin unique values
     spRef = arcpy.Describe(mergedAll).spatialReference
     Joined_demandbySpecies = os.path.join(scratch, 'demandbySpecies')
     arcpy.CreateFeatureclass_management(scratch, "demandbySpecies", geometry_type='POLYGON', spatial_reference=spRef)
-    arcpy.AddField_management(Joined_demandbySpecies, binUnique, "TEXT")
+    for uni in binUnique:
+      arcpy.AddField_management(Joined_demandbySpecies, uni, "TEXT")
     arcpy.Append_management(binIt, Joined_demandbySpecies, "NO_TEST")
 
     # read in csv that contains the crosswalk for all the field names
@@ -620,7 +623,8 @@ class Waterfowlmodel:
             print(fds)
             fdList = fds[6:12]
             fdlist.append('species')
-        arcpy.JoinField_management(Joined_demandbySpecies, binUnique, demandbySpecies, binUnique, fields=[fdList])  
+            print(fdlist)
+            arcpy.JoinField_management(Joined_demandbySpecies, binUnique[0], demandbySpecies, binUnique[0], fields=[fdList])  
       elif int(arcpy.management.GetCount(selectDemand)[0]) == 0:
         print('\tNo records with {} species. Not calculated'.format(sp))
 
