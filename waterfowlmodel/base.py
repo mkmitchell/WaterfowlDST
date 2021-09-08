@@ -77,7 +77,7 @@ class Waterfowlmodel:
     self.scratch = scratch
     self.aoi = self.projAlbers(aoi, 'AOI')
     self.aoiname = aoiname
-    self.binIt = self.selectBins(self.aoi, self.projAlbers(binIt, 'bin'))
+    self.binIt = self.projAlbers(self.clipStuff(binIt, 'bin'), 'Bin')
     self.binUnique = binUnique
     self.wetland = self.projAlbers(self.clipStuff(wetland, 'wetland'), 'Wetland')
     self.kcalTbl = kcalTable
@@ -589,6 +589,24 @@ class Waterfowlmodel:
 
     print("Field Table: ", speciesList)
 
+    def energyBySpecies(self, demand, scratch, binIt, binUnique, mergedAll):
+      """
+      Runs species specific energy demand.
+
+      :param demand: Energy demand layer
+      :type demand: str
+      :param scratch: Scratch geodatabase location
+      :type scratch: str  
+      :param binIt: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+      :type binIt: str
+      :param mergeAll: Merged energy returned from self.prepnpptables.
+      :type mergeAll: str      
+      """
+      print(demand)
+      print(scratch)
+      print(binIt)
+      print(binUnique)
+
     def unique_values(table, field):  ##uses list comprehension
       with arcpy.da.SearchCursor(table, [field]) as cursor:
         return sorted({row[0] for row in cursor})
@@ -599,7 +617,7 @@ class Waterfowlmodel:
     for sp in speciesList:
       # filter demand layer to only this species...
       where_clause="species = '{}'".format(sp)
-      print(where_clause)
+      print(where_clause) 
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
       
       # if records for this species exist..
@@ -609,22 +627,24 @@ class Waterfowlmodel:
         arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, demandSelected))
         print("\tAggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
         demandbySpecies = Waterfowlmodel.aggByField(self, mergedAll, scratch, demandSelected, binIt, 'energydemand_{}'.format(sp))
-        print("Records in aggbyfield output", int(arcpy.GetCount_management(demandbySpecies)[0]))
+        print("Records in aggbyfield output:", int(arcpy.GetCount_management(demandbySpecies)[0]))
         outputFields = [f.name for f in arcpy.ListFields(demandbySpecies)]
         print("Current output fields", outputFields)
 
         dfSpecies = fieldtable[fieldtable['species'].isin([sp, sp.lower(), sp.upper()])]
         print("\tNumber of rows in species table: ", len(dfSpecies))
         print("\tFixing field names to be species-specific for ", sp)
+
+        # THIS IS THE PROBLEM SECTION
         for i, row in dfSpecies.iterrows():
           if row['original_field_name'] in outputFields:
             arcpy.AlterField_management(demandbySpecies, field=row['original_field_name'], new_field_name=row['field_name'],new_field_alias=row['field_alias'])
-            fds = [f.name for f in arcpy.ListFields(demandbySpecies)]
-            print(fds)
-            fdList = fds[6:12]
+            fdlist = [f.name for f in arcpy.ListFields(demandbySpecies)]
+            # Problem is that there aren't 12 fields in this output.
+            #fdlist = fds[6:12]
             fdlist.append('species')
-            print(fdlist)
-            arcpy.JoinField_management(Joined_demandbySpecies, binUnique[0], demandbySpecies, binUnique[0], fields=[fdList])  
+            print("All Fields: ", fdlist)
+            arcpy.JoinField_management(Joined_demandbySpecies, binUnique[0], demandbySpecies, binUnique[0], fields=[fdlist])  
       elif int(arcpy.management.GetCount(selectDemand)[0]) == 0:
         print('\tNo records with {} species. Not calculated'.format(sp))
 

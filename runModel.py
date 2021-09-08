@@ -172,7 +172,7 @@ def main(argv):
       outputgdb = os.path.join(workspace, args.aoi[0], 'output', args.aoi[0] + "_output.gdb")
       if not (os.path.exists(scratchgdb)):
          print('Creating scratch geodatabase: ', scratchgdb)
-         arcpy.CreateFileGDB_management(scratchgdb)
+         arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
       if not os.path.exists(outputFolder):
          os.mkdir(outputFolder)
       if not (os.path.exists(outputgdb)):
@@ -272,7 +272,9 @@ def main(argv):
 
    if debug[2]: # Species proportion,use the original demand layer, and not the derived demand layer that only includes summed values for all species.
       print('\n#### ENERGY DEMAND BY SPECIES ####')
-      demandSp = dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
+      #demandSp = dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
+      demandSp = dst.energyBySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'))
+      sys.exit()
 
    if debug[3]: #Public lands
       print('\n#### PUBLIC LANDS ####')
