@@ -589,37 +589,25 @@ class Waterfowlmodel:
 
     print("Field Table: ", speciesList)
 
-    def energyBySpecies(self, demand, scratch, binIt, binUnique, mergedAll):
-      """
-      Runs species specific energy demand.
+  def energyBySpecies(self, demand, scratch, binIt, mergedAll):
+    """
+    Runs species specific energy demand.
 
-      :param demand: Energy demand layer
-      :type demand: str
-      :param scratch: Scratch geodatabase location
-      :type scratch: str  
-      :param binIt: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
-      :type binIt: str
-      :param mergeAll: Merged energy returned from self.prepnpptables.
-      :type mergeAll: str      
-      """
-      print(demand)
-      print(scratch)
-      print(binIt)
-      print(binUnique)
-
-    def unique_values(table, field):  ##uses list comprehension
-      with arcpy.da.SearchCursor(table, [field]) as cursor:
-        return sorted({row[0] for row in cursor})
-
-    demandSpeciesList = unique_values(demand, 'species')
-    print("Demand Table: ", demandSpeciesList)
-
+    :param demand: Energy demand layer
+    :type demand: str
+    :param scratch: Scratch geodatabase location
+    :type scratch: str  
+    :param binIt: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
+    :type binIt: str
+    :param mergeAll: Merged energy returned from self.prepnpptables.
+    :type mergeAll: str      
+    """
+    insp = gpd.GeoDataFrame.from_file(arcpy.Describe(demand).path, layer=arcpy.Describe(demand).name)
+    speciesList = insp.species.unique()
+    print(speciesList)
     for sp in speciesList:
       # filter demand layer to only this species...
-      where_clause="species = '{}'".format(sp)
-      print(where_clause) 
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
-      
       # if records for this species exist..
       if int(arcpy.management.GetCount(selectDemand)[0]) > 0:
         # create a copy of the demand layer for this species
@@ -627,26 +615,20 @@ class Waterfowlmodel:
         arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, demandSelected))
         print("\tAggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
         demandbySpecies = Waterfowlmodel.aggByField(self, mergedAll, scratch, demandSelected, binIt, 'energydemand_{}'.format(sp))
-        print("Records in aggbyfield output:", int(arcpy.GetCount_management(demandbySpecies)[0]))
-        outputFields = [f.name for f in arcpy.ListFields(demandbySpecies)]
-        print("Current output fields", outputFields)
-
-        dfSpecies = fieldtable[fieldtable['species'].isin([sp, sp.lower(), sp.upper()])]
-        print("\tNumber of rows in species table: ", len(dfSpecies))
-        print("\tFixing field names to be species-specific for ", sp)
-
-        # THIS IS THE PROBLEM SECTION
-        for i, row in dfSpecies.iterrows():
-          if row['original_field_name'] in outputFields:
-            arcpy.AlterField_management(demandbySpecies, field=row['original_field_name'], new_field_name=row['field_name'],new_field_alias=row['field_alias'])
-            fdlist = [f.name for f in arcpy.ListFields(demandbySpecies)]
-            # Problem is that there aren't 12 fields in this output.
-            #fdlist = fds[6:12]
-            fdlist.append('species')
-            print("All Fields: ", fdlist)
-            arcpy.JoinField_management(Joined_demandbySpecies, binUnique[0], demandbySpecies, binUnique[0], fields=[fdlist])  
-      elif int(arcpy.management.GetCount(selectDemand)[0]) == 0:
-        print('\tNo records with {} species. Not calculated'.format(sp))
+        print("Records in aggbyfield output", int(arcpy.GetCount_management(demandbySpecies)[0]))
+        insp = pd.DataFrame.spatial.from_featureclass(os.path.join(scratch, 'energydemand_'+sp))
+        for col in insp.columns[4:-1]:
+            insp.rename(columns={col: sp+'_'+col}, inplace = True)
+        insp.drop(['OBJECTID', 'species', 'CODE'], axis=1, inplace=True)
+        if sp == 'ABDU':
+            outdf = insp
+        else:
+            insp.drop(['SHAPE'], axis=1, inplace=True)
+            outdf = outdf.join(insp.set_index('fips'), on='fips', how='left', rsuffix=sp)
+    if arcpy.Exists(os.path.join(scratch, 'DemandBySpecies')):
+      arcpy.Delete_management(os.path.join(scratch, 'DemandBySpecies'))
+    outdf.spatial.to_featureclass(os.path.join(scratch, 'DemandBySpecies'))
+    return
 
   @report_time
   def calcProtected(self, mergedenergy, protectedMerge, protectedEnergy):

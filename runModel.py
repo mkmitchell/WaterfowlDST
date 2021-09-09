@@ -273,8 +273,7 @@ def main(argv):
    if debug[2]: # Species proportion,use the original demand layer, and not the derived demand layer that only includes summed values for all species.
       print('\n#### ENERGY DEMAND BY SPECIES ####')
       #demandSp = dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
-      demandSp = dst.energyBySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'))
-      sys.exit()
+      dst.energyBySpecies(dst.origDemand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'))
 
    if debug[3]: #Public lands
       print('\n#### PUBLIC LANDS ####')
