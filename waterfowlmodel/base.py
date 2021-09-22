@@ -536,7 +536,7 @@ class Waterfowlmodel:
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80PopObj', expression="!aggByField" + cat + "unionhucfips.X80PopObj! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80Demand', expression="!aggByField" + cat + "unionhucfips.X80Demand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")      
       print('\tDissolve and alter field names')
-      print(self.binUnique)
+      #print(self.binUnique)
       arcpy.Dissolve_management(in_features=outLayer + 'unionhucfips', out_feature_class=outLayer+'dissolveHUC', dissolve_field=self.binUnique, statistics_fields="LTADUD SUM;LTAPopObj SUM;LTADemand SUM;X80DUD SUM;X80PopObj SUM;X80Demand SUM", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTADUD', 'LTADUD', 'Long term average Duck use days')
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTAPopObj', 'LTAPopObj', 'Long term average Population objective')
@@ -605,7 +605,7 @@ class Waterfowlmodel:
     insp = gpd.GeoDataFrame.from_file(arcpy.Describe(demand).path, layer=arcpy.Describe(demand).name)
     speciesList = insp.species.unique()
     try:
-      speciesList.remove('All')
+      speciesList = speciesList[~np.in1d(speciesList, np.array(['All']))]
     except:
       pass
     print(speciesList)
@@ -620,13 +620,13 @@ class Waterfowlmodel:
         arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, demandSelected))
         print("\tAggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
         demandbySpecies = self.aggByField(mergedAll, scratch, demandSelected, binIt, sp)
-        print(demandbySpecies)
+        #print(demandbySpecies)
         print("Records in aggbyfield output", int(arcpy.GetCount_management(demandbySpecies)[0]))
         insp = pd.DataFrame.spatial.from_featureclass(demandbySpecies)
         for col in insp.columns[4:-1]:
             insp.rename(columns={col: sp+'_'+col}, inplace = True)
         print(insp.columns)
-        for dropme in ['OBJECTID', 'species', 'CODE', 'Name']:
+        for dropme in ['OBJECTID', 'species', 'CODE']:
           try:
             insp.drop(dropme, axis=1, inplace=True)
           except:
@@ -634,7 +634,7 @@ class Waterfowlmodel:
         if sp == speciesList[0]:
             outdf = insp
         else:
-            insp.drop(['SHAPE'], axis=1, inplace=True)
+            insp.drop(['SHAPE', 'name'], axis=1, inplace=True)
             outdf = outdf.join(insp.set_index('huc12'), on='huc12', how='left', rsuffix=sp)
     if arcpy.Exists(os.path.join(scratch, 'DemandBySpecies')):
       arcpy.Delete_management(os.path.join(scratch, 'DemandBySpecies'))
