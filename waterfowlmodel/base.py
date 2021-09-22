@@ -604,9 +604,14 @@ class Waterfowlmodel:
     """
     insp = gpd.GeoDataFrame.from_file(arcpy.Describe(demand).path, layer=arcpy.Describe(demand).name)
     speciesList = insp.species.unique()
+    try:
+      speciesList.remove('All')
+    except:
+      pass
     print(speciesList)
     for sp in speciesList:
       # filter demand layer to only this species...
+      print(sp)
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
       # if records for this species exist..
       if int(arcpy.management.GetCount(selectDemand)[0]) > 0:
@@ -614,17 +619,23 @@ class Waterfowlmodel:
         demandSelected = os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp))
         arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, demandSelected))
         print("\tAggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
-        demandbySpecies = Waterfowlmodel.aggByField(self, mergedAll, scratch, demandSelected, binIt, 'energydemand_{}'.format(sp))
+        demandbySpecies = self.aggByField(mergedAll, scratch, demandSelected, binIt, sp)
+        print(demandbySpecies)
         print("Records in aggbyfield output", int(arcpy.GetCount_management(demandbySpecies)[0]))
-        insp = pd.DataFrame.spatial.from_featureclass(os.path.join(scratch, 'energydemand_'+sp))
+        insp = pd.DataFrame.spatial.from_featureclass(demandbySpecies)
         for col in insp.columns[4:-1]:
             insp.rename(columns={col: sp+'_'+col}, inplace = True)
-        insp.drop(['OBJECTID', 'species', 'CODE'], axis=1, inplace=True)
-        if sp == 'ABDU':
+        print(insp.columns)
+        for dropme in ['OBJECTID', 'species', 'CODE', 'Name']:
+          try:
+            insp.drop(dropme, axis=1, inplace=True)
+          except:
+            pass
+        if sp == speciesList[0]:
             outdf = insp
         else:
             insp.drop(['SHAPE'], axis=1, inplace=True)
-            outdf = outdf.join(insp.set_index('fips'), on='fips', how='left', rsuffix=sp)
+            outdf = outdf.join(insp.set_index('huc12'), on='huc12', how='left', rsuffix=sp)
     if arcpy.Exists(os.path.join(scratch, 'DemandBySpecies')):
       arcpy.Delete_management(os.path.join(scratch, 'DemandBySpecies'))
     outdf.spatial.to_featureclass(os.path.join(scratch, 'DemandBySpecies'))
