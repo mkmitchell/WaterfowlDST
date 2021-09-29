@@ -54,7 +54,7 @@ def main(argv):
    :type binUnique: str   
    :param aoi: Area of interest shapefile
    :type aoi: str
-   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Supply, demand, species proportion, protected lands, habitat proportion, urban, data check, zip it]
+   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, full model, data check, merge all, zip]
    :type debug: str 
    :param fieldTable: Table to standardize field names and aliases, this csv: ModelOutputFieldDictionary.csv
    :type fieldTable: str
@@ -89,7 +89,7 @@ def main(argv):
    parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name")
    parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify are a of interest layer name")
    parser.add_argument('--fieldTable', '-f', nargs="*", type=str, default=[], help='Specify crosswalk to standardize field names and aliases.')
-   parser.add_argument('--debug', '-z', nargs=8, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, data check, zip]")
+   parser.add_argument('--debug', '-z', nargs=10, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, full model, data check, merge all, zip]")
    
    # parse the command line
    args = parser.parse_args()
@@ -184,7 +184,7 @@ def main(argv):
    if args.debug:
       debug = args.debug
    else:
-      debug = [1, 1, 1, 1, 1, 1, 1, 1]
+      debug = [1, 1, 1, 1, 1, 1, 1, 1, 1, 1]
    if debug[2] == 1 and fieldTable == '':
       print('Field table not defined but option is enabled')
       sys.exit(2)
@@ -273,7 +273,7 @@ def main(argv):
    if debug[2]: # Species proportion,use the original demand layer, and not the derived demand layer that only includes summed values for all species.
       print('\n#### ENERGY DEMAND BY SPECIES ####')
       #demandSp = dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
-      dst.energyBySpecies(dst.origDemand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'))
+      outSpecies = dst.energyBySpecies(dst.origDemand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'))
 
    if debug[3]: #Public lands
       print('\n#### PUBLIC LANDS ####')
@@ -311,10 +311,11 @@ def main(argv):
          mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
       habpct = dst.pctHabitatType(dst.binUnique[0], wtmarray)
 
-   print('\n#### HABITAT WEIGHTED MEAN ####')
-   if not debug[1]:
-      mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
-   dst.weightedMean(dst.demand, wtmarray)
+      if debug[6]:
+         print('\n#### HABITAT WEIGHTED MEAN ####')
+         if not debug[1]:
+            mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
+         dst.weightedMean(dst.demand, wtmarray)
 
    if debug[5]:
       print('\n#### Calculate Urban HA ####')
@@ -327,16 +328,17 @@ def main(argv):
    else:
       dst.urban = os.path.join(dst.scratch, 'aggtourban')
 
-   print('\n#### Merging all the data for output ####')
-   print(dst.energysupply)
-   print(dst.demand)
-   mergebin.append(dst.unionEnergy(dst.energysupply, dst.demand)) #Energy supply and demand
-   mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
-   mergebin.append(dst.protectedEnergy) #Protected energy
-   mergebin.append(dst.urban) #Urban - available HA
-   outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
+   if debug[6]:
+      print('\n#### Merging all the data for output ####')
+      #print(dst.energysupply)
+      #print(dst.demand)
+      mergebin.append(dst.unionEnergy(dst.energysupply, dst.demand)) #Energy supply and demand
+      mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
+      mergebin.append(dst.protectedEnergy) #Protected energy
+      mergebin.append(dst.urban) #Urban - available HA
+      outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
 
-   if debug[6]: #Data check
+   if debug[7]: #Data check
       np.set_printoptions(suppress=True)
       print('\n#### Checking data ####')
       arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="THabNrg SUM; TLTADemand SUM; TLTADUD SUM; ProtHA SUM")
@@ -356,7 +358,14 @@ def main(argv):
       print('\nOutput Protection HA: {}\nInput HA: {}'.format(outputStats[0][3], inprotstats[0][0]))
       print('\tProtection  difference %: {}'.format(int((outputStats[0][3] - inprotstats[0][0])/(outputStats[0][3] + inprotstats[0][0])*100)))
 
-   if debug[7]: #Zip it
+   if debug[8]: #Merge for web
+      try:
+         print('\n#### Merging for Web pipeline ####')
+         webMerge = dst.mergeForWeb(outData if debug[6] else os.path.join(outputgdb, dst.aoiname+'_Output'), outSpecies if debug[2] else os.path.join(dst.scratch, 'DemandBySpecies'), habpct if debug[4] else os.path.join(dst.scratch, 'HabitatProportion'))
+      except Exception as e:
+         print(e)
+
+   if debug[9]: #Zip it
       print('\n#### Zip data ####')
       #print('\tAdd HUC')
       #waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
