@@ -458,8 +458,8 @@ class Waterfowlmodel:
         arcpy.AlterField_management(webReady, sp+'_'+fldname, sp + '_' + fldlst[0], spname + ' ' + fldlst[1])
     
     for shp in [mainModel, spEnergy, habPct, webReady]:
-      print('\n'+ shp)
-      print([f.name for f in arcpy.ListFields(shp)])
+      #print('\n'+ shp)
+      #print([f.name for f in arcpy.ListFields(shp)])
     if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_WebReady')):
       arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_WebReady'))
     arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady')) 
