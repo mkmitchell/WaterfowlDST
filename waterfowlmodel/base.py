@@ -423,7 +423,7 @@ class Waterfowlmodel:
     arcpy.Copy_management(os.path.join(self.scratch, self.aoiname+'_Output'), os.path.join(outputgdb, self.aoiname+'_Output')) 
     return os.path.join(outputgdb, self.aoiname+'_Output')
 
-  def mergeForWeb(self, mainModel, spEnergy, habPct):
+  def mergeForWeb(self, mainModel, spEnergy, habPct, outputgdb):
     """
     Merges the main model output with species specific energy and habitat percentages for a clean model to web pipeline.
 
@@ -437,7 +437,7 @@ class Waterfowlmodel:
     :rtype: str
     """
     spDict = {'abdu':'American Black Duck', 'amwi':'American Wigeon', 'bwte':'Blue-winged teal', 'gadw':'Gadwall', 'agwt':'Green-winged teal', 'mall':'Mallard', 'nopi':'Northern Pintain', 'nsho':'Northern Shoveler', 'wodu':'Wood duck'}
-    #{old field name: [new field name, alias, description]}
+    #{old field name: [new field name, alias]}
     energDict = {'ltadud':['dud_lta','{} Duck Use Days'], 'lta_pop_obj':['popobj_lta','{} Population Objective'],'lta_demand':['demand_lta_kcal','{} Long-Term Average Energy Demand (kcal)'], 'x80_dud':['dud_80th','{} 80th Percentile Duck Use Days'], 'x80_pop_obj':['popobj_80th', '{} 80th Percentile Population Objective', '80th percentile daily number of {}s that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.'],'x80_demand':['demand_80th_kcal','{} 80th Percentile Energy Demand (kcal)']}
     webReady = os.path.join(self.scratch, self.aoiname+ '_WebReady')
     if arcpy.Exists(webReady):
@@ -460,8 +460,10 @@ class Waterfowlmodel:
     for shp in [mainModel, spEnergy, habPct, webReady]:
       print('\n'+ shp)
       print([f.name for f in arcpy.ListFields(shp)])
-
-    return webReady
+    if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_WebReady')):
+      arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_WebReady'))
+    arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady')) 
+    return
 
   def unionEnergy(self, supply, demand):
     """

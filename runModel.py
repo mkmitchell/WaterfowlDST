@@ -54,7 +54,7 @@ def main(argv):
    :type binUnique: str   
    :param aoi: Area of interest shapefile
    :type aoi: str
-   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, full model, data check, merge all, zip]
+   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, full model output, data check, merge all, zip]
    :type debug: str 
    :param fieldTable: Table to standardize field names and aliases, this csv: ModelOutputFieldDictionary.csv
    :type fieldTable: str
@@ -361,7 +361,7 @@ def main(argv):
    if debug[8]: #Merge for web
       try:
          print('\n#### Merging for Web pipeline ####')
-         webMerge = dst.mergeForWeb(outData if debug[6] else os.path.join(outputgdb, dst.aoiname+'_Output'), outSpecies if debug[2] else os.path.join(dst.scratch, 'DemandBySpecies'), habpct if debug[4] else os.path.join(dst.scratch, 'HabitatProportion'))
+         dst.mergeForWeb(outData if debug[6] else os.path.join(outputgdb, dst.aoiname+'_Output'), outSpecies if debug[2] else os.path.join(dst.scratch, 'DemandBySpecies'), habpct if debug[4] else os.path.join(dst.scratch, 'HabitatProportion'), outputgdb)
       except Exception as e:
          print(e)
 
