@@ -394,8 +394,8 @@ class Waterfowlmodel:
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_LTADUD', 'dud_lta', 'Long-Term Average Duck Use Days')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_LTADemand', 'demand_lta_kcal', 'Long Term Average Energy Demand (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_LTAPopObj', 'popobj_lta', 'Long Term Average Population Objective')
-    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_X80DUD', 'dud80th', '80th Percentile Duck Use Days')
-    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_X80Demand', 'demand_80th', '80th Percentile Energy Demand (kcal)')
+    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_X80DUD', 'dud_80th', '80th Percentile Duck Use Days')
+    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_X80Demand', 'demand_80th_kcal', '80th Percentile Energy Demand (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_X80PopObj', 'popobj_80th', '80th Percentile Population Objective')    
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_ProtHA', 'protected_ha', 'Protected Hectares')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_ProtHabHA', 'protectedhabitat_ha', 'Protected Habitat Hectares')
@@ -436,18 +436,50 @@ class Waterfowlmodel:
     :return: Shapefile containing ready for web output to be zipped
     :rtype: str
     """
-    spDict = {'abdu':'American Black Duck', 'amwi':'American Wigeon', 'bwte':'Blue-winged teal', 'gadw':'Gadwall', 'agwt':'Green-winged teal', 'mall':'Mallard', 'nopi':'Northern Pintain', 'nsho':'Northern Shoveler', 'wodu':'Wood duck'}
+    spDict = {'abdu':'American Black Duck', 'amwi':'American Wigeon', 'bwte':'Blue-winged teal', 'gadw':'Gadwall', 
+              'agwt':'Green-winged teal', 'mall':'Mallard', 'nopi':'Northern Pintail', 'nsho':'Northern Shoveler', 'wodu':'Wood duck'}
     #{old field name: [new field name, alias]}
-    energDict = {'ltadud':['dud_lta','{} Duck Use Days'], 'lta_pop_obj':['popobj_lta','{} Population Objective'],'lta_demand':['demand_lta_kcal','{} Long-Term Average Energy Demand (kcal)'], 'x80_dud':['dud_80th','{} 80th Percentile Duck Use Days'], 'x80_pop_obj':['popobj_80th', '{} 80th Percentile Population Objective', '80th percentile daily number of {}s that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.'],'x80_demand':['demand_80th_kcal','{} 80th Percentile Energy Demand (kcal)']}
+    energDict = {'ltadud':['dud_lta','Long-Term Average Duck Use Days'], 'lta_pop_obj':['popobj_lta','Long-Term Average Population Objective'],
+                'lta_demand':['demand_lta_kcal','Long-Term Average Energy Demand (kcal)'], 'x80_dud':['dud_80th','80th Percentile Duck Use Days'], 
+                'x80_pop_obj':['popobj_80th', '80th Percentile Population Objective', '80th percentile daily number of {}s that should be supported in the watershed, based on NAWMP Population goals stepped down from county to HUC12 watershed.'],
+                'x80_demand':['demand_80th_kcal','80th Percentile Energy Demand (kcal)']}
+    habitatDict = {'HighSaltMarsh':['s_himarsh', 'High Salt Marsh'] , 
+                  'LowSaltMarsh':['s_lomarsh', 'Low Salt Marsh'],
+                  'FreshMarsh':['f_marsh', 'Fresh Marsh'], 
+                  'ManagedFreshMarsh':['fm_marsh', 'Managed Fresh Marsh'],
+                  'ManagedFreshShallowOpenWater':['fm_shallowopen', 'Managed Fresh Shallow Open Water'], 
+                  'FreshShallowOpenWater':['f_shallowopen', 'Fresh Shallow Open Water'], 
+                  'FreshShores':['f_shores', 'Fresh Shores'], 
+                  'MudflatSalt':['s_mudflat','Mudflat Salt'], 
+                  'SaltMarshNonDominant':['s_nd_marsh', 'Salt Marsh (Non-dominant)'], 
+                  'DeepwaterFresh':['f_deepwater', 'Deepwater Fresh'],
+                  'Subtidal':['subtidal','Subtidal'], 
+                  'FreshwaterWoody':['f_woody', 'Freshwater Woody'], 
+                  'FreshwaterAquaticBed':['f_aquaticbed', 'Freshwater Aquatic Bed'],
+                  'SaltwaterAquaticBed':['s_aquaticbedintertidal', 'Saltwater Aquatic Bed Intertidal'],
+                  'SaltwaterWoody':['s_woody', 'Saltwater Woody'], 
+                  'Phragmites':['phragmites', 'Phragmites'], 
+                  'ManagedFreshAquaticBed':['fm_aquaticbed', 'Managed Freshwater Aquatic Bed']}
     webReady = os.path.join(self.scratch, self.aoiname+ '_WebReady')
     if arcpy.Exists(webReady):
       arcpy.Delete_management(os.path.join(self.scratch, self.aoiname+ '_WebReady'))
     else:
       pass
     arcpy.CopyFeatures_management(mainModel, webReady)
+    # field names FIX
+    spFields = [f.name for f in arcpy.ListFields(spEnergy)]
+    #print("Species Fields: \n{}".format(spFields))
+    habFields = [f.name for f in arcpy.ListFields(habPct)]
+    #print("Habitat Fields: \n{}".format(habFields))
+
     try:  
-      arcpy.management.JoinField(webReady, 'HUC12name', spEnergy, 'huc12', ['mall_ltadud', 'mall_lta_pop_obj', 'mall_lta_demand', 'mall_x80_dud', 'mall_x80_pop_obj', 'mall_x80_demand', 'wodu_ltadud', 'wodu_lta_pop_obj', 'wodu_lta_demand', 'wodu_x80_dud', 'wodu_x80_pop_obj', 'wodu_x80_demand', 'agwt_ltadud', 'agwt_lta_pop_obj', 'agwt_lta_demand', 'agwt_x80_dud', 'agwt_x80_pop_obj', 'agwt_x80_demand', 'amwi_ltadud', 'amwi_lta_pop_obj', 'amwi_lta_demand', 'amwi_x80_dud', 'amwi_x80_pop_obj', 'amwi_x80_demand', 'bwte_ltadud', 'bwte_lta_pop_obj', 'bwte_lta_demand', 'bwte_x80_dud', 'bwte_x80_pop_obj', 'bwte_x80_demand', 'gadw_ltadud', 'gadw_lta_pop_obj', 'gadw_lta_demand', 'gadw_x80_dud', 'gadw_x80_pop_obj', 'gadw_x80_demand', 'nopi_ltadud', 'nopi_lta_pop_obj', 'nopi_lta_demand', 'nopi_x80_dud', 'nopi_x80_pop_obj', 'nopi_x80_demand', 'nsho_ltadud', 'nsho_lta_pop_obj', 'nsho_lta_demand', 'nsho_x80_dud', 'nsho_x80_pop_obj', 'nsho_x80_demand', 'abdu_ltadud', 'abdu_lta_pop_obj', 'abdu_lta_demand', 'abdu_x80_dud', 'abdu_x80_pop_obj', 'abdu_x80_demand'])
-      arcpy.management.JoinField(webReady, 'HUC12name', habPct, 'huc12', ['HighSaltMarsh', 'LowSaltMarsh', 'FreshMarsh', 'ManagedFreshMarsh', 'ManagedFreshShallowOpenWater', 'FreshShallowOpenWater', 'FreshShores', 'MudflatSalt', 'SaltMarshNonDominant', 'DeepwaterFresh', 'Subtidal', 'FreshwaterWoody', 'FreshwaterAquaticBed', 'SaltwaterAquaticBed', 'SaltwaterWoody', 'Phragmites', 'ManagedFreshAquaticBed'])
+      arcpy.management.JoinField(webReady, 'huc12', spEnergy, 'huc12', ['mall_ltadud', 'mall_lta_pop_obj', 'mall_lta_demand', 'mall_x80_dud', 'mall_x80_pop_obj', 'mall_x80_demand', 'wodu_ltadud', 'wodu_lta_pop_obj', 'wodu_lta_demand', 'wodu_x80_dud', 'wodu_x80_pop_obj', 'wodu_x80_demand', 'agwt_ltadud', 'agwt_lta_pop_obj', 'agwt_lta_demand', 'agwt_x80_dud', 'agwt_x80_pop_obj', 'agwt_x80_demand', 'amwi_ltadud', 'amwi_lta_pop_obj', 'amwi_lta_demand', 'amwi_x80_dud', 'amwi_x80_pop_obj', 'amwi_x80_demand', 'bwte_ltadud', 'bwte_lta_pop_obj', 'bwte_lta_demand', 'bwte_x80_dud', 'bwte_x80_pop_obj', 'bwte_x80_demand', 'gadw_ltadud', 'gadw_lta_pop_obj', 'gadw_lta_demand', 'gadw_x80_dud', 'gadw_x80_pop_obj', 'gadw_x80_demand', 'nopi_ltadud', 'nopi_lta_pop_obj', 'nopi_lta_demand', 'nopi_x80_dud', 'nopi_x80_pop_obj', 'nopi_x80_demand', 'nsho_ltadud', 'nsho_lta_pop_obj', 'nsho_lta_demand', 'nsho_x80_dud', 'nsho_x80_pop_obj', 'nsho_x80_demand', 'abdu_ltadud', 'abdu_lta_pop_obj', 'abdu_lta_demand', 'abdu_x80_dud', 'abdu_x80_pop_obj', 'abdu_x80_demand'])
+      arcpy.management.JoinField(webReady, 'huc12', habPct, 'huc12', ['HighSaltMarsh', 'LowSaltMarsh', 'FreshMarsh', 'ManagedFreshMarsh', 'ManagedFreshShallowOpenWater', 'FreshShallowOpenWater', 'FreshShores', 'MudflatSalt', 'SaltMarshNonDominant', 'DeepwaterFresh', 'Subtidal', 'FreshwaterWoody', 'FreshwaterAquaticBed', 'SaltwaterAquaticBed', 'SaltwaterWoody', 'Phragmites', 'ManagedFreshAquaticBed'])
+    
+      # field field names
+      webReadyFields = [f.name for f in arcpy.ListFields(webReady)]
+      #print("All Other Fields: \n{}".format(webReadyFields))
+
     except Exception as e:
       print(e)
       exit()
@@ -456,13 +488,17 @@ class Waterfowlmodel:
       for fldname, fldlst in energDict.items():
         #print('{} will become {}'.format(sp+'_'+fldname, sp + '_' + fldlst[0]))
         arcpy.AlterField_management(webReady, sp+'_'+fldname, sp + '_' + fldlst[0], spname + ' ' + fldlst[1])
+
+    for fldname, fldlst in habitatDict.items():
+      #print('{} will become {}'.format(fldname, fldlst[0]))
+      arcpy.AlterField_management(webReady, fldname, fldlst[0], fldlst[1])
     
     for shp in [mainModel, spEnergy, habPct, webReady]:
       #print('\n'+ shp)
       #print([f.name for f in arcpy.ListFields(shp)])
-    if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_WebReady')):
-      arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_WebReady'))
-    arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady')) 
+      if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_WebReady')):
+        arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_WebReady'))
+      arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady')) 
     return
 
   def unionEnergy(self, supply, demand):

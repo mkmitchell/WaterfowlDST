@@ -337,15 +337,17 @@ def main(argv):
       mergebin.append(dst.protectedEnergy) #Protected energy
       mergebin.append(dst.urban) #Urban - available HA
       outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
+   else:
+      outData = os.path.join(outputgdb, dst.aoiname+'_Output')
 
    if debug[7]: #Data check
       np.set_printoptions(suppress=True)
       print('\n#### Checking data ####')
-      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="THabNrg SUM; TLTADemand SUM; TLTADUD SUM; ProtHA SUM")
+      arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="tothabitat_kcal SUM; demand_lta_kcal SUM; dud_lta SUM; protected_ha SUM")
       arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
       arcpy.Statistics_analysis(in_table=demandSelected, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM; LTADUD SUM")
       arcpy.Statistics_analysis(in_table=dst.protectedMerge, out_table=os.path.join(dst.scratch, 'protStats'), statistics_fields="CalcHA SUM")
-      outputStats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'outputStats'), ['SUM_THabNrg', 'SUM_TLTADemand', 'SUM_TLTADUD','SUM_ProtHA'])
+      outputStats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'outputStats'), ['SUM_tothabitat_kcal', 'SUM_demand_lta_kcal', 'SUM_dud_lta','SUM_protected_ha'])
       inenergystats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'mergedEnergyStats'), ['SUM_avalNrgy'])
       indemandstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'demandStats'), ['SUM_LTADemand', 'SUM_LTADUD'])
       inprotstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'protStats'), ['SUM_CalcHA'])
