@@ -319,6 +319,7 @@ def main(argv):
 
    if debug[5]:
       print('\n#### Calculate Urban HA ####')
+      dst.mergedenergy = dst.cleanMe(dst.urban)
       if not len(arcpy.ListFields(dst.urban,'CalcHA'))>0:
          arcpy.AddField_management(dst.urban, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
       arcpy.CalculateGeometryAttributes_management(dst.urban, "CalcHA AREA", area_unit="HECTARES")

@@ -346,6 +346,7 @@ class Waterfowlmodel:
     :return: Shapefile containing model results at the county level
     :rtype: str
     """
+    print("Mergebin: {}".format(mergebin))
     if arcpy.Exists(os.path.join(self.scratch, 'AllDataBintemp')):
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBintemp'))
     arcpy.Merge_management(mergebin, os.path.join(self.scratch, 'AllDataBintemp'))
@@ -408,7 +409,7 @@ class Waterfowlmodel:
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_lta_kcal', "DOUBLE", 9, 2, "", "LTA Energy Protection Needed (Habitat Energy demand - protected habitat energy) (kcal)")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_80th_kcal', "DOUBLE", 9, 2, "", "X80 Energy Protection Needed (Habitat Energy demand - protected habitat energy) (kcal)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='nrgprot_lta_kcal', expression="!demand_lta_kcal! - !protected_kcal! if !demand_lta_kcal! - !protected_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
-    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='nrgprot_80th_kcal', expression="!demand_80th! - !protected_kcal! if !demand_80th! - !protected_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='nrgprot_80th_kcal', expression="!demand_80th_kcal! - !protected_kcal! if !demand_80th_kcal! - !protected_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'restoregoal_lta_ha', "DOUBLE", 9, 2, "", "LTA Restoration HA based off weighted mean (Surplus/weighted mean)")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'restoregoal_80th_ha', "DOUBLE", 9, 2, "", "X80 Restoration HA based off weighted mean (Surplus/weighted mean)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='restoregoal_lta_ha', expression="abs(!surpdef_lta_kcal!/!wtMean_kcal_per_ha!) if !surpdef_lta_kcal! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
@@ -420,7 +421,8 @@ class Waterfowlmodel:
     arcpy.FeatureClassToFeatureClass_conversion(os.path.join(self.scratch, 'AllDataBin'),self.scratch,self.aoiname+'_Output',self.binUnique[0] + " <> ''")
     if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_Output')):
       arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_Output'))
-    arcpy.Copy_management(os.path.join(self.scratch, self.aoiname+'_Output'), os.path.join(outputgdb, self.aoiname+'_Output')) 
+    arcpy.Copy_management(os.path.join(self.scratch, self.aoiname+'_Output'), os.path.join(outputgdb, self.aoiname+'_Output'))
+    logging.info('\tCreating output')
     return os.path.join(outputgdb, self.aoiname+'_Output')
 
   def mergeForWeb(self, mainModel, spEnergy, habPct, outputgdb):
@@ -498,7 +500,8 @@ class Waterfowlmodel:
       #print([f.name for f in arcpy.ListFields(shp)])
       if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_WebReady')):
         arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_WebReady'))
-      arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady')) 
+      arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady'))
+      logging.info('\tWeb ready')
     return
 
   def unionEnergy(self, supply, demand):
@@ -828,6 +831,7 @@ class Waterfowlmodel:
   
   @report_time
   def cleanMe(self, toClean):
+    print('Repairing ' + toClean)
     arcpy.RepairGeometry_management(toClean)
     return toClean
 
