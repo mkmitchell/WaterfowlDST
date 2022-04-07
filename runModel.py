@@ -4,13 +4,15 @@ runModel
 Implementation of the Waterfowlmodel class to calculate energy demand, supply, and public land area within an area of interest.
 """
 
-import os, sys, getopt, datetime, logging, arcpy, argparse, time
+import os, sys, getopt, datetime, logging, arcpy, argparse, time, multiprocessing
 from functools import wraps
 import waterfowlmodel.base as waterfowl
 import waterfowlmodel.dataset
 import waterfowlmodel.publicland
 import waterfowlmodel.zipup
 import numpy as np
+from functools import partial
+from contextlib import contextmanager
 
 def printlog(txt, var):
    print(txt + ':', var)
@@ -26,6 +28,12 @@ def report_time(func):
         print(func.__name__, round(end-start,3))
         return result
     return wrapper
+
+@contextmanager
+def poolcontext(*args, **kwargs):
+    pool = multiprocessing.Pool(*args, **kwargs)
+    yield pool
+    pool.terminate()
 
 @report_time
 def main(argv):
@@ -87,7 +95,7 @@ def main(argv):
    parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
    parser.add_argument('--binUnique', '-u', nargs=2, type=str, default=[], help="Specify the aggregation layer unique column and name")
    parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name")
-   parser.add_argument('--aoi', '-a', nargs=1, type=str, default=[], help="Specify are a of interest layer name")
+   parser.add_argument('--aoi', '-a', nargs=2, type=str, default=[], help="Specify area of interest layer name and field name for unique separation")
    parser.add_argument('--fieldTable', '-f', nargs="*", type=str, default=[], help='Specify crosswalk to standardize field names and aliases.')
    parser.add_argument('--debug', '-z', nargs=10, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, full model, data check, merge all, zip]")
    
@@ -156,6 +164,7 @@ def main(argv):
       sys.exit(2)      
    aoi = os.path.join(geodatabase,args.aoi[0])
    aoiname = args.aoi[0]
+   aoifield = args.aoi[1]
    aoiworkspace = os.path.join(os.path.join(workspace, args.aoi[0]))
    outputFolder = os.path.join(workspace, args.aoi[0], 'output')
    if not (os.path.exists(os.path.join(workspace, args.aoi[0]))):
@@ -200,6 +209,7 @@ def main(argv):
    print('#####################################')
    printlog('\tWorkspace', workspace)
    printlog('\tAOI Workspace', aoiworkspace)
+   printlog('\tAOI Field name', aoifield)
    printlog('\tDate', datetime.datetime.now().strftime("%m_%d_%Y"))
    printlog('\tWetland layer', wetland.inData)
    printlog('\tWetland crosswalk', wetland.crosswalk)
@@ -220,9 +230,32 @@ def main(argv):
    printlog('\tDebugging', ' '.join(map(str, list(debug))))
    print('#####################################')
 
+   # Setup all the variables required for waterfowl.Waterfowlmodel then map to calc
+
+   # Use aoi and aoifield to create list of unique elements.  Create list of waterfowlmodel init params for each unique aoi
+   dstList = ()
+   unique_values = set(row[0] for row in arcpy.da.SearchCursor(aoi, aoifield))
+   for oneAOI in unique_values:
+      uniqueAOI = arcpy.SelectLayerByAttribute_management(in_layer_or_view=aoi, selection_type="NEW_SELECTION", where_clause=aoifield + " = '" +oneAOI+"'")
+      scratchgdb = os.path.join(workspace, args.aoi[0], oneAOI + "_scratch.gdb")
+      if not (os.path.exists(scratchgdb)):
+         print('Creating scratch geodatabase: ', scratchgdb)
+         arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), oneAOI+'_scratch.gdb')      
+      dstList.append([uniqueAOI, oneAOI, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, urban.inData, binIt, binUnique, extra, fieldTable, scratchgdb])
+
+   print(dstList)
+   sys.exit()
+   # Setup pool and map
+   print("Creating pool")
+   with poolcontext(processes=3) as pool:
+      results = pool.map(partial(calc, debug=debug, args=args, outputgdb=outputgdb), dstList)
+   print(results)
+
+
+def calc(dstinfo, debug, args, outputgdb):
    startT = time.perf_counter()
    print('\n#### Create waterfowl object ####')
-   dst = waterfowl.Waterfowlmodel(aoi, aoiname, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, urban.inData, binIt, binUnique, extra, fieldTable, scratchgdb)
+   dst = waterfowl.Waterfowlmodel(dstinfo)
    logging.info('Wetland layer '.join(map(str, list(dst.__dict__))))
    if debug[0]: #Energy supply
       print('\n#### ENERGY SUPPLY ####')
