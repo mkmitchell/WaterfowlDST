@@ -50,8 +50,7 @@ def AddHUCNames(outputfc, hucFC, output_hucID_field_name = 'HUC12', hucID_field_
 
 
 
-def zipUp(base = r'C:\Users\jskillman\Ducks Unlimited Incorporated\GIS Department - ABDU DST and more!\GIS\Output', 
-    fldr = r'C:\Users\jskillman\Ducks Unlimited Incorporated\GIS Department - ABDU DST and more!\GIS\Output\_12072020\SouthAtlantic_output'):
+def zipUp(base, fldr):
     """
     Zips up the geodatabase for upload.
 

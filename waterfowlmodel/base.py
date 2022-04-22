@@ -3,6 +3,7 @@ Module Waterfowl
 ================
 Defines Waterfowlmodel class which is used for storing parameters and doing calculations for the waterfowl decision support tool.
 """
+from distutils.errors import CCompilerError
 import os, sys, getopt, datetime, logging, arcpy, json, csv, re, time
 from functools import wraps
 from arcpy import env
@@ -31,6 +32,10 @@ def make_df(in_table):
     df = pd.DataFrame(rows,columns=columns)
     return df
 
+def printlog(txt, var):
+   print(txt + ':', var)
+   logging.info(txt + ': ' + var)
+  
 def calculate_field(df, inDataset, xTable, curclass):
     if int(arcpy.GetCount_management(inDataset)[0]) > 0:
         file_extension = os.path.splitext(xTable)[-1].lower()
@@ -84,7 +89,7 @@ class Waterfowlmodel:
     self.kcalList = self.getHabList()
     self.crossTbl = crosswalk
     self.demand = self.projAlbers(self.clipStuff(demand, 'demand'), 'Demand')
-    self.urban = self.projAlbers(self.clipStuff(urban, 'urban'), 'Urban')
+    self.urban = urban#self.projAlbers(self.clipStuff(urban, 'urban'), 'Urban')
     self.extra = self.processExtra(extra)
     self.mergedenergy = os.path.join(self.scratch, 'MergedEnergy')
     self.protectedMerge = os.path.join(self.scratch, 'MergedProtLands')
@@ -243,7 +248,6 @@ class Waterfowlmodel:
   def supaCrossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
     df = make_df(inDataset)
     outdf = calculate_field(df, inDataset, xTable, curclass)
-    #print(outdf.head())
     outdf = outdf[['OBJECTID', 'CLASS']]
     v = outdf.reset_index()
     outnp = np.rec.fromrecords(v, names=v.columns.tolist())
@@ -272,11 +276,7 @@ class Waterfowlmodel:
       logging.info('\tAlready joined habitat supply')
       return mergedenergy
     blah = [item[0] for item in extra.values()]
-    print(blah)
     arcpy.analysis.Union(' #;'.join([str(x) for x in blah]) + ' #', os.path.join(self.scratch, 'mergedExtra'), "ALL", None, "GAPS")
-    #arcpy.Merge_management(blah, os.path.join(self.scratch, 'mergedExtra'))
-    #arcpy.RepairGeometry_management(os.path.join(self.scratch, 'mergedExtra'))
-    print('timetoerase')
     arcpy.Erase_analysis(wetland, os.path.join(self.scratch, 'mergedExtra'), os.path.join(self.scratch, 'nwiDelExtra'))
     erased = [os.path.join(self.scratch, 'nwiDelExtra'), os.path.join(self.scratch, 'mergedExtra')]
     arcpy.Merge_management(erased, mergedenergy)
@@ -301,7 +301,8 @@ class Waterfowlmodel:
       arcpy.AddField_management(inDataset, 'kcal', "LONG")
     if not len(arcpy.ListFields(inDataset,'CalcHA'))>0:
       arcpy.AddField_management(inDataset, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
-    arcpy.CalculateGeometryAttributes_management(inDataset, "CalcHA AREA", area_unit="HECTARES")      
+    arcpy.CalculateGeometryAttributes_management(inDataset, "CalcHA AREA", area_unit="HECTARES")   
+
     # Read data from file:
     print('\tReading in habitat file')
     file_extension = os.path.splitext(xTable)[-1].lower()
@@ -322,12 +323,10 @@ class Waterfowlmodel:
                 row[2] = float(value[0]) * float(row[3])
                 cursor.updateRow(row)
             except Exception as e:
-              print(e)
-              print(key)
-              print(value)
-              print(value[0])
-              print(row[3])
-              sys.exit()
+              print('Error', e)
+              print('Class', key)
+              print('avalNrgy', value)
+              print('CalcHA', row[3])
         else:
           continue
     del cursor, row
@@ -469,9 +468,9 @@ class Waterfowlmodel:
       pass
     arcpy.CopyFeatures_management(mainModel, webReady)
     # field names FIX
-    print("File name: \n{}".format(spEnergy))
+    #print("File name: \n{}".format(spEnergy))
     spFields = [f.name for f in arcpy.ListFields(spEnergy)]
-    print("Species Fields: \n{}".format(spFields))
+    #print("Species Fields: \n{}".format(spFields))
     habFields = [f.name for f in arcpy.ListFields(habPct)]
     #print("Habitat Fields: \n{}".format(habFields))
 
@@ -503,7 +502,7 @@ class Waterfowlmodel:
         arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_WebReady'))
       arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady'))
       logging.info('\tWeb ready')
-    return
+    return os.path.join(outputgdb, self.aoiname+'_WebReady')
 
   def calculateStandardizedABDU(self, WebReady):
     # create new fields
@@ -604,12 +603,19 @@ class Waterfowlmodel:
         print('\tAlready dissolved and calculated, returning input')
         return aggToOut
       else:
+        #print('make feature')
         arcpy.MakeFeatureLayer_management(in_features=aggData, out_layer=outLayer,field_info=FieldsToAgg)
+        #print('union')
         arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
+      #print('dissolve')
+      #print(Dissolve_Field_s_)
+      #print(AggStats)
       arcpy.Dissolve_management(in_features=outLayerI, out_feature_class=aggToOut, dissolve_field=Dissolve_Field_s_, statistics_fields=AggStats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.Delete_management(outLayerI)
     except Exception as e:
-      print(e)
+      exc_type, exc_obj, exc_tb = sys.exc_info()
+      fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
+      print(exc_type, fname, exc_tb.tb_lineno)
     return aggToOut
 
   def aggByField(self, mergeAll, scratch, demand, binme, cat):
@@ -626,10 +632,10 @@ class Waterfowlmodel:
     :rtype:  str
     """
     try:
-      print('\tProportioning energy demand based on energy supply.')
+      #print('\tProportioning energy demand based on energy supply.')
       outLayer = os.path.join(scratch, 'aggByField' + cat)
       #print('\toutlayer:', outLayer)
-      print('\tCalculating stats')
+      #print('\tCalculating stats')
       arcpy.Statistics_analysis(in_table=mergeAll, out_table=outLayer + 'hucfipsum', statistics_fields="avalNrgy SUM", case_field="huc12;fips")
       arcpy.Statistics_analysis(in_table=outLayer + 'hucfipsum', out_table=outLayer + 'fipsum', statistics_fields="SUM_avalNrgy SUM", case_field="fips")
       arcpy.AddField_management(outLayer + 'hucfipsum', "PropPCT", "DOUBLE", 9, "", "", "EnergyProportionPercent", "NULLABLE", "REQUIRED")
@@ -638,7 +644,7 @@ class Waterfowlmodel:
       hucfip = arcpy.AddJoin_management(in_layer_or_view=outLayer + 'hucfipsum', in_field="fips", join_table=outLayer + 'fipsum', join_field="fips", join_type="KEEP_ALL")
       #print('\tjoined - printing field names')
       arcpy.CalculateField_management(in_table=hucfip, field="PropPCT", expression="(!aggByField" + cat + "hucfipsum.SUM_avalNrgy!/!aggByField" + cat + "fipsum.SUM_SUM_avalNrgy!)", expression_type="PYTHON_9.3", code_block="")
-      print('\tUnion huc and fips and calculate demand')
+      #print('\tUnion huc and fips and calculate demand')
       unionme = ' #; '.join([demand, binme]) + ' #'
       arcpy.Union_analysis(in_features=unionme, out_feature_class=outLayer + 'unionhucfips', join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
       arcpy.AddField_management(outLayer + 'unionhucfips', 'hucfip', "TEXT", 50)
@@ -650,7 +656,7 @@ class Waterfowlmodel:
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80DUD', expression="!aggByField" + cat + "unionhucfips.X80DUD! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80PopObj', expression="!aggByField" + cat + "unionhucfips.X80PopObj! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80Demand', expression="!aggByField" + cat + "unionhucfips.X80Demand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")      
-      print('\tDissolve and alter field names')
+      #print('\tDissolve and alter field names')
       #print(self.binUnique)
       arcpy.Dissolve_management(in_features=outLayer + 'unionhucfips', out_feature_class=outLayer+'dissolveHUC', dissolve_field=self.binUnique, statistics_fields="LTADUD SUM;LTAPopObj SUM;LTADemand SUM;X80DUD SUM;X80PopObj SUM;X80Demand SUM", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTADUD', 'LTADUD', 'Long term average Duck use days')
@@ -723,7 +729,7 @@ class Waterfowlmodel:
       speciesList = speciesList[~np.in1d(speciesList, np.array(['All']))]
     except:
       pass
-    print(speciesList)
+    #print(speciesList)
     for sp in speciesList:
       # filter demand layer to only this species...
       print(sp)
@@ -733,14 +739,14 @@ class Waterfowlmodel:
         # create a copy of the demand layer for this species
         demandSelected = os.path.join(scratch, 'EnergyDemandSelected_{}'.format(sp))
         arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, demandSelected))
-        print("\tAggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
+        #print("\tAggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
         demandbySpecies = self.aggByField(mergedAll, scratch, demandSelected, binIt, sp)
         #print(demandbySpecies)
-        print("Records in aggbyfield output", int(arcpy.GetCount_management(demandbySpecies)[0]))
+        #print("Records in aggbyfield output", int(arcpy.GetCount_management(demandbySpecies)[0]))
         insp = pd.DataFrame.spatial.from_featureclass(demandbySpecies)
         for col in insp.columns[3:-1]:
             insp.rename(columns={col: sp+'_'+col}, inplace = True)
-        print(insp.columns)
+        #print(insp.columns)
         for dropme in ['OBJECTID', 'species', 'CODE']:
           try:
             insp.drop(dropme, axis=1, inplace=True)
@@ -766,10 +772,9 @@ class Waterfowlmodel:
         arcpy.Clip_analysis(mergedenergy, protectedMerge, protectedEnergy)
       except Exception as e:
         print('\t Need to repair')
-        sys.exit()
-        #arcpy.RepairGeometry_management(mergedenergy)
-        #arcpy.RepairGeometry_management(protectedMerge)
-        #arcpy.Clip_analysis(mergedenergy, protectedMerge, protectedEnergy)
+        arcpy.RepairGeometry_management(mergedenergy)
+        arcpy.RepairGeometry_management(protectedMerge)
+        arcpy.Clip_analysis(mergedenergy, protectedMerge, protectedEnergy)
       arcpy.CalculateField_management(in_table=protectedEnergy, field="CalcHA", expression="!shape.area@hectares!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=protectedEnergy, field="avalNrgy", expression="!CalcHA!* !kcal!", expression_type="PYTHON_9.3", code_block="")
 
@@ -855,10 +860,10 @@ class Waterfowlmodel:
     """
     print('\tCleaning ' + os.path.basename(toClean))
     output = os.path.join(os.path.dirname(toClean), os.path.basename(toClean) + '_Cleaned')
-    cleanMe = gpd.read_file(os.path.dirname(toClean), layer=os.path.basename(toClean))
-    cleanMe['geometry'] = cleanMe.buffer(0)
-    cleanMe = cleanMe.to_crs(CRS.from_string('EPSG:4326'))
-    cleaned = pd.DataFrame.spatial.from_geodataframe(cleanMe)
+    cleanMeFC = gpd.read_file(os.path.dirname(toClean), layer=os.path.basename(toClean))
+    cleanMeFC['geometry'] = cleanMeFC.buffer(0)
+    cleanMeFC = cleanMeFC.to_crs(CRS.from_string('EPSG:4326'))
+    cleaned = pd.DataFrame.spatial.from_geodataframe(cleanMeFC)
     cleaned.spatial.to_featureclass(location=output+'toproj')
     arcpy.Project_management(output+'toproj', output, arcpy.SpatialReference(102003))
     return output
@@ -915,7 +920,11 @@ class Waterfowlmodel:
     dfmerge['pct'] = (dfmerge['CalcHA_x']/dfmerge['CalcHA_y'])*100
     outdf = dfmerge.pivot_table(index=binUnique, columns='CLASS', values='pct', aggfunc=np.sum)
     outdf = outdf.fillna(0)
-    outdf = outdf.drop(columns = ['', 'nan'])
+    print(outdf.head(3))
+    try:
+      outdf = outdf.drop(columns = ['', 'nan'])
+    except:
+      outdf = outdf.drop(columns = [''])
     print(outdf.head())
     #print(outdf.sum(axis=1))
     badfields = []

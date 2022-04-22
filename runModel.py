@@ -62,10 +62,13 @@ def main(argv):
    :type binUnique: str   
    :param aoi: Area of interest shapefile
    :type aoi: str
-   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, full model output, data check, merge all, zip]
-   :type debug: str 
    :param fieldTable: Table to standardize field names and aliases, this csv: ModelOutputFieldDictionary.csv
    :type fieldTable: str
+   :param cleanRun: Check for and delete intermediate data
+   :type cleanRun: str      
+   :param debug: Run sections of code for debugging.  1 = run code and 0 = don't run code section.  Defaults to run everything if not specified. [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, full model output, data check, merge all, zip]
+   :type debug: str 
+
    """
    aoi = ''
    aoiname = ''
@@ -80,6 +83,7 @@ def main(argv):
    outputgdb = ''
    outputFolder = ''
    fieldTable = ''
+   cleanRun = 0
    extra = {}
    mergebin = []
 
@@ -94,9 +98,10 @@ def main(argv):
    parser.add_argument('--extra', '-e', nargs="*", type=str, default=[], help="Extra habitat datasets in format: full path to dataset 1, full path to crosswalk 1, full path to dataset 2, full path to crosswalk")
    parser.add_argument('--binIt', '-b', nargs=1, type=str, default=[], help="Specify aggregation layer name")
    parser.add_argument('--binUnique', '-u', nargs=2, type=str, default=[], help="Specify the aggregation layer unique column and name")
-   parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name")
+   parser.add_argument('--urban', '-r', nargs=1, type=str, default=[], help="Specify urban layer name raster. NLCD")
    parser.add_argument('--aoi', '-a', nargs=2, type=str, default=[], help="Specify area of interest layer name and field name for unique separation")
    parser.add_argument('--fieldTable', '-f', nargs="*", type=str, default=[], help='Specify crosswalk to standardize field names and aliases.')
+   parser.add_argument('--cleanRun', '-c', nargs=1, type=int, default=[], help='Specify crosswalk to standardize field names and aliases.')
    parser.add_argument('--debug', '-z', nargs=10, type=int,default=[], help="Run specific sections of code.  1 or 0 for [Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, full model, data check, merge all, zip]")
    
    # parse the command line
@@ -150,6 +155,10 @@ def main(argv):
          sys.exit(2)         
    else:
       fieldTable = ''
+   if args.cleanRun:
+      cleanRun = args.cleanRun
+   else:
+      cleanRun = 0
    binIt = os.path.join(geodatabase,args.binIt[0])
    if not arcpy.Exists(binIt):
       print("Aggregation layer doesn't exist.")
@@ -173,15 +182,15 @@ def main(argv):
       os.mkdir(outputFolder)
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
       outputgdb = os.path.join(workspace, args.aoi[0], 'output', args.aoi[0] + "_output.gdb")
-      arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
+      #arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
       arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')
    else:
       #print("Project folder already exists.  Using it")
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
       outputgdb = os.path.join(workspace, args.aoi[0], 'output', args.aoi[0] + "_output.gdb")
-      if not (os.path.exists(scratchgdb)):
-         print('Creating scratch geodatabase: ', scratchgdb)
-         arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
+      #if not (os.path.exists(scratchgdb)):
+         #print('Creating scratch geodatabase: ', scratchgdb)
+         #arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
       if not os.path.exists(outputFolder):
          os.mkdir(outputFolder)
       if not (os.path.exists(outputgdb)):
@@ -227,69 +236,105 @@ def main(argv):
    printlog('\tRegion of interest', aoi)
    printlog('\tScratch gdb', scratchgdb)
    printlog('\tOutput gdb', outputgdb)
+   printlog('\tClean run', str(cleanRun))
    printlog('\tDebugging', ' '.join(map(str, list(debug))))
    print('#####################################')
 
    # Setup all the variables required for waterfowl.Waterfowlmodel then map to calc
 
    # Use aoi and aoifield to create list of unique elements.  Create list of waterfowlmodel init params for each unique aoi
-   dstList = ()
+   dstList = []
    unique_values = set(row[0] for row in arcpy.da.SearchCursor(aoi, aoifield))
    for oneAOI in unique_values:
-      uniqueAOI = arcpy.SelectLayerByAttribute_management(in_layer_or_view=aoi, selection_type="NEW_SELECTION", where_clause=aoifield + " = '" +oneAOI+"'")
       scratchgdb = os.path.join(workspace, args.aoi[0], oneAOI + "_scratch.gdb")
       if not (os.path.exists(scratchgdb)):
          print('Creating scratch geodatabase: ', scratchgdb)
          arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), oneAOI+'_scratch.gdb')      
-      dstList.append([uniqueAOI, oneAOI, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, urban.inData, binIt, binUnique, extra, fieldTable, scratchgdb])
+      uniqueAOI = arcpy.SelectLayerByAttribute_management(in_layer_or_view=aoi, selection_type="NEW_SELECTION", where_clause=aoifield + " = '" +oneAOI+"'")
+      arcpy.CopyFeatures_management(uniqueAOI, os.path.join(workspace, args.aoi[0], oneAOI + "_scratch.gdb", 'stateAOI'))
+      dstList.append([os.path.join(workspace, args.aoi[0], oneAOI + "_scratch.gdb", 'stateAOI'), oneAOI, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, urban.inData, binIt, binUnique, extra, fieldTable, scratchgdb])
 
-   print(dstList)
-   sys.exit()
    # Setup pool and map
    print("Creating pool")
-   with poolcontext(processes=3) as pool:
-      results = pool.map(partial(calc, debug=debug, args=args, outputgdb=outputgdb), dstList)
+   with poolcontext(processes=2) as pool:
+      results = pool.map(partial(calc, debug=debug, args=args, outputgdb=outputgdb, nced=nced, padus=padus, aoiname=aoiname, aoiworkspace=aoiworkspace, cleanRun=cleanRun, fieldTable=fieldTable), dstList)
+   printlog('\t Returning results', results)
+   #results = calc(dstinfo=dstList[0], debug=debug, args=args, outputgdb=outputgdb, nced=nced, padus=padus, aoiname=aoiname, aoiworkspace=aoiworkspace, cleanRun=cleanRun, fieldTable=fieldTable)
+
    print(results)
+   arcpy.Merge_management(results,os.path.join(os.path.join(workspace, args.aoi[0], '_done')))
 
+   if debug[9]: #Zip it
+      print('\n#### Zip data ####')
+      
+      #print('\tAdd HUC')
+      #waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
+      arcpy.ClearWorkspaceCache_management()
+      try:
+         waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
+      except Exception as e:
+         print(e)   
 
-def calc(dstinfo, debug, args, outputgdb):
+   print('FINALIZED')
+   sys.exit()
+
+def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cleanRun, fieldTable):
    startT = time.perf_counter()
-   print('\n#### Create waterfowl object ####')
-   dst = waterfowl.Waterfowlmodel(dstinfo)
+   print('\n#### Create waterfowl object for ', dstinfo[1])   
+   #print('dst', dstinfo)
+   aoiname = dstinfo[1]
+   dst = waterfowl.Waterfowlmodel(dstinfo[0], dstinfo[1],dstinfo[2],dstinfo[3],dstinfo[4],dstinfo[5],dstinfo[6],dstinfo[7],dstinfo[8],dstinfo[9],dstinfo[10], dstinfo[11])
+   print('#####################################')   
+   printlog('\tRegion of interest', dst.aoiname)
+   printlog('\tScratch gdb', dst.scratch)
+   printlog('\tOutput gdb', outputgdb)
+   print('#####################################')   
    logging.info('Wetland layer '.join(map(str, list(dst.__dict__))))
+   
    if debug[0]: #Energy supply
-      print('\n#### ENERGY SUPPLY ####')
+      printlog('\n#### ENERGY SUPPLY for ', dstinfo[1])
       print('\tWetland crossclass')
       dst.wetland = dst.supaCrossClass(dst.wetland, dst.crossTbl)
-      #print(dst.extra.keys())
       for i in dst.extra.keys():
          dst.crossClass(dst.extra[i][0], dst.extra[i][1])
       print('\tJoin supply habitats')
+      if cleanRun and arcpy.Exists(dst.mergedenergy):
+         arcpy.Delete_management(dst.mergedenergy)
       if int(len(args.extra)/2) > 0:
          dst.mergedenergy = dst.joinEnergy(dst.wetland, dst.extra, dst.mergedenergy)
       else:
          dst.mergedenergy = dst.wetland
-      print('\tPrep supply Energy')
-      dst.mergedenergy = dst.prepEnergyFast(dst.mergedenergy, dst.kcalTbl)
-      print('\tMerge supply Energy')
+      printlog('\tPrep supply Energy for ', dstinfo[1])
       allEnergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.mergedenergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
-      arcpy.CopyFeatures_management(allEnergy, dst.mergedenergy + 'Selection')
-      dst.mergedenergy = dst.mergedenergy + 'Selection'
+      if not arcpy.Exists(dst.mergedenergy + 'Selection'):
+         arcpy.CopyFeatures_management(allEnergy, dst.mergedenergy + 'Selection')
+      dst.mergedenergy = dst.mergedenergy + 'Selection'      
+      #if not arcpy.Exists(os.path.join(os.path.dirname(dst.mergedenergy), os.path.basename(dst.mergedenergy) + '_Geotogeo')):
+      dst.mergedenergy = dst.prepEnergyFast(dst.mergedenergy, dst.kcalTbl)
+      print('\tMerge supply Energy for ', dstinfo[1])
+
       #pdClean = dst.pandasClean(aoiworkspace, dst.mergedenergy)
-      dst.mergedenergy = dst.cleanMe(dst.mergedenergy)
-      print(dst.binUnique)
+      dst.cleanMe(dst.mergedenergy)
+      #print(dst.binUnique)
       dst.energysupply = dst.aggproportion(dst.binIt, dst.mergedenergy, "OBJECTID", ["avalNrgy", "CalcHA"], dst.binUnique, dst.scratch, "supplyenergy")
       if not len(arcpy.ListFields(dst.energysupply,'THabNrg'))>0:
          arcpy.AlterField_management(dst.energysupply, 'SUM_avalNrgy', 'THabNrg', 'TotalHabitatEnergy')
       if not len(arcpy.ListFields(dst.energysupply,'THabHA'))>0:
          arcpy.AlterField_management(dst.energysupply, 'SUM_CalcHA', 'THabHA', 'TotalHabitatHA')
    else:
-      dst.energysupply = os.path.join(dst.scratch, 'aggtosupplyenergy')
-      if not int(len(args.extra)/2) > 0:
-         dst.mergedenergy = dst.wetland
+      if arcpy.Exists(os.path.join(dst.scratch, 'aggtosupplyenergy')):
+         dst.energysupply = os.path.join(dst.scratch, 'aggtosupplyenergy')
+      else:
+         print('Energy needs to be run')
+         sys.exit()
+      if arcpy.Exists(dst.mergedenergy + 'Selection'):
+         dst.mergedenergy = dst.mergedenergy + 'Selection'
+      else:
+         print('Energy needs to be run')
+         sys.exit()
 
    if debug[1]: #Energy demand
-      print('\n#### ENERGY DEMAND ####')
+      printlog('\n#### ENERGY DEMAND for ', dstinfo[1])
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
       if arcpy.management.GetCount(selectDemand)[0] > "0":
          arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
@@ -301,15 +346,15 @@ def calc(dstinfo, debug, args, outputgdb):
    else:
       demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
       dst.demand = os.path.join(dst.scratch, 'aggByFieldenergydemanddissolveHUC')
-      dst.origDemand = demand.inData
+      #dst.origDemand = dst.demand.inData
 
    if debug[2]: # Species proportion,use the original demand layer, and not the derived demand layer that only includes summed values for all species.
-      print('\n#### ENERGY DEMAND BY SPECIES ####')
-      #demandSp = dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
+      printlog('\n#### ENERGY DEMAND BY SPECIES for ', dstinfo[1])
+      dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
       outSpecies = dst.energyBySpecies(dst.origDemand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'))
 
    if debug[3]: #Public lands
-      print('\n#### PUBLIC LANDS ####')
+      printlog('\n#### PUBLIC LANDS for ', dstinfo[1])
       nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
       padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
       print('\tPublic lands ready. Analyzing')
@@ -339,20 +384,39 @@ def calc(dstinfo, debug, args, outputgdb):
       dst.protectedMerge = os.path.join(aoiworkspace, "Protected" + aoiname + ".shp")
    
    if debug[4]: #Habitat proportions
-      print('\n#### HABITAT PERCENTAGE ####')
+      printlog('\n#### HABITAT PERCENTAGE for ', dstinfo[1])
       if not debug[1]:
          mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
-      habpct = dst.pctHabitatType(dst.binUnique[0], wtmarray)
+      dst.pctHabitatType(dst.binUnique[0], wtmarray)
 
       if debug[6]:
-         print('\n#### HABITAT WEIGHTED MEAN ####')
+         printlog('\n#### HABITAT WEIGHTED MEAN for ', dstinfo[1])
          if not debug[1]:
             mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
          dst.weightedMean(dst.demand, wtmarray)
 
    if debug[5]:
-      print('\n#### Calculate Urban HA ####')
-      dst.mergedenergy = dst.cleanMe(dst.urban)
+      printlog('\n#### Calculate Urban HA for ', dstinfo[1])
+      desc = arcpy.Describe(dst.aoi)
+      xmin = desc.extent.XMin
+      xmax = desc.extent.XMax
+      ymin = desc.extent.YMin
+      ymax = desc.extent.YMax
+      rectangle = str(xmin) + ' ' + str(ymin) + ' ' + str(xmax) + ' ' + str(ymax)
+      #arcpy.management.Clip("nlcd2019Albers", "1145388.3408 -498558.5864 1599481.4296 -157037.984200001", r"C:\Users\mike\AppData\Local\Temp\ArcGISProTemp6424\0e6cc148-6841-4b4c-add1-6348fd230bcd\Default.gdb\nlcd2019Albers_Clip", "state1", '', "ClippingGeometry", "NO_MAINTAIN_EXTENT")
+      #print(os.path.join(dst.scratch, 'urbanclip' + aoiname))
+      if not arcpy.Exists(os.path.join(dst.scratch, 'urbanclip' + aoiname)):
+         print(dst.urban, rectangle)
+         print(dst.scratch)
+         urbanClip = arcpy.management.Clip(dst.urban, rectangle, os.path.join(dst.scratch, 'urbanclip' + aoiname), dstinfo[0], '', "ClippingGeometry", "NO_MAINTAIN_EXTENT")
+      else:
+         print('Urbanclip exists.  Using that')
+         urbanClip = os.path.join(dst.scratch, 'urbanclip' + aoiname)
+      urbanExtract = arcpy.sa.ExtractByAttributes(urbanClip, "VALUE > 20 AND VALUE < 30")
+      urbanExtract.save(os.path.join(dst.scratch, 'urbanready' + aoiname))
+      arcpy.RasterToPolygon_conversion(os.path.join(dst.scratch, 'urbanready' + aoiname), os.path.join(dst.scratch, 'urbanPoly' + aoiname), "SIMPLIFY", "VALUE")
+      dst.urban = os.path.join(dst.scratch, 'urbanPoly' + aoiname)
+      #dst.urban = dst.cleanMe(dst.urban)
       if not len(arcpy.ListFields(dst.urban,'CalcHA'))>0:
          arcpy.AddField_management(dst.urban, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
       arcpy.CalculateGeometryAttributes_management(dst.urban, "CalcHA AREA", area_unit="HECTARES")
@@ -361,9 +425,10 @@ def calc(dstinfo, debug, args, outputgdb):
          arcpy.AlterField_management(dst.urban, 'SUM_CalcHA', 'UrbanHA', 'Urban Hectares')
    else:
       dst.urban = os.path.join(dst.scratch, 'aggtourban')
-
+   
+   mergebin = []
    if debug[6]:
-      print('\n#### Merging all the data for output ####')
+      printlog('\n#### Merging all the data for output for ', dstinfo[1])
       #print(dst.energysupply)
       #print(dst.demand)
       mergebin.append(dst.unionEnergy(dst.energysupply, dst.demand)) #Energy supply and demand
@@ -376,7 +441,7 @@ def calc(dstinfo, debug, args, outputgdb):
 
    if debug[7]: #Data check
       np.set_printoptions(suppress=True)
-      print('\n#### Checking data ####')
+      printlog('\n#### Checking data for ', dstinfo[1])
       arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="tothabitat_kcal SUM; demand_lta_kcal SUM; dud_lta SUM; protected_ha SUM")
       arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
       arcpy.Statistics_analysis(in_table=demandSelected, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM; LTADUD SUM")
@@ -397,24 +462,17 @@ def calc(dstinfo, debug, args, outputgdb):
    if debug[8]: #Merge for web
       try:
          print('\n#### Merging for Web pipeline ####')
-         dst.mergeForWeb(outData if debug[6] else os.path.join(outputgdb, dst.aoiname+'_Output'), outSpecies if debug[2] else os.path.join(dst.scratch, 'DemandBySpecies'), habpct if debug[4] else os.path.join(dst.scratch, 'HabitatProportion'), outputgdb)
+         webReady = dst.mergeForWeb(outData, outSpecies if debug[2] else os.path.join(dst.scratch, 'DemandBySpecies'), os.path.join(dst.scratch, 'HabitatProportion'), outputgdb)
       except Exception as e:
          print(e)
+   else:
+      webReady = os.path.join(outputgdb, dst.aoiname+'_WebReady')
 
-   if debug[9]: #Zip it
-      print('\n#### Zip data ####')
-      #print('\tAdd HUC')
-      #waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
-      arcpy.ClearWorkspaceCache_management()
-      try:
-         waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
-      except Exception as e:
-         print(e)
-      
    print('\nComplete')
    print("Date and time: ", now.strftime('%H:%M:%S on %A, %B the %dth, %Y'))
    #print('\nCompleted in {}'.format(time.perf_counter() - startT))
    print('#####################################\n')
+   return webReady
 
 if __name__ == "__main__":
    print('\nRunning model')
