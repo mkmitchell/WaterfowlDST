@@ -222,7 +222,7 @@ class Waterfowlmodel:
         with open(xTable, mode='r') as infile:
           reader = csv.reader(infile)
           dataDict = {rows[0]:rows[1].split(',') for rows in reader}
-      print(inDataset)
+      #print(inDataset)
       with arcpy.da.UpdateCursor(inDataset, [curclass, 'CLASS']) as cursor:
         for row in cursor:
           if row[0]:
@@ -301,8 +301,18 @@ class Waterfowlmodel:
       arcpy.AddField_management(inDataset, 'kcal', "LONG")
     if not len(arcpy.ListFields(inDataset,'CalcHA'))>0:
       arcpy.AddField_management(inDataset, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
-    arcpy.CalculateGeometryAttributes_management(inDataset, "CalcHA AREA", area_unit="HECTARES")   
-
+    toSHP = os.path.join(os.path.dirname(os.path.dirname(inDataset)), 'test'+self.aoiname+'.shp')
+    arcpy.FeatureClassToFeatureClass_conversion(inDataset, os.path.dirname(toSHP), 'test'+self.aoiname+'.shp')   
+    cleanMe = gpd.read_file(toSHP, driver='shapefile')
+    #print(cleanMe)
+    cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
+    cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
+    try:
+      cleanMe = cleanMe.fillna('')
+    except:
+      pass
+    cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'testCleaned'+self.aoiname+'.shp'))
+    inDataset = os.path.join(os.path.dirname(toSHP), 'testCleaned'+self.aoiname+'.shp')
     # Read data from file:
     print('\tReading in habitat file')
     file_extension = os.path.splitext(xTable)[-1].lower()
@@ -312,10 +322,12 @@ class Waterfowlmodel:
       with open(xTable, mode='r') as infile:
         reader = csv.reader(infile)
         dataDict = {rows[0]:rows[1].split(',') for rows in reader}
-    print('\tCalculating available energy')
+    print('\tCalculating available energy for', inDataset)
     with arcpy.da.UpdateCursor(inDataset, ['kcal', 'CLASS', 'avalNrgy', 'CalcHA']) as cursor:
+      print('Entering calculation')
+      print(cursor)
       for row in cursor:
-        if row[0] is None:
+        if row[0] is None or row[0]== 0:
           for key, value in dataDict.items():
             try:
               if row[1] == key:
@@ -329,7 +341,11 @@ class Waterfowlmodel:
               print('CalcHA', row[3])
         else:
           continue
-    del cursor, row
+      try:
+        del cursor, row
+      except:
+        print('all calculated or error with row')
+        sys.exit()
     return inDataset
 
   def dstOutput(self, mergebin, dissolveFields, outputgdb):
@@ -383,9 +399,20 @@ class Waterfowlmodel:
       arcpy.da.ExtendTable(os.path.join(self.scratch, 'AllDataBintemp'), self.binUnique[0], addHuc, self.binUnique[0])
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),'BinHA'))>0:
       arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBintemp'), 'BinHA', "DOUBLE", 9, 2, "", "Hectares")      
-    arcpy.CalculateGeometryAttributes_management(os.path.join(self.scratch, 'AllDataBintemp'), "BinHA AREA", area_unit="HECTARES")
-    print([f.name for f in arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'))])
-    arcpy.Dissolve_management(in_features=os.path.join(self.scratch, 'AllDataBintemp'), out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+    #arcpy.CalculateGeometryAttributes_management(os.path.join(self.scratch, 'AllDataBintemp'), "BinHA AREA", area_unit="HECTARES")
+    toSHP = os.path.join(os.path.dirname(os.path.dirname(self.scratch)), 'prepout'+self.aoiname+'.shp')
+    arcpy.FeatureClassToFeatureClass_conversion(os.path.join(self.scratch, 'AllDataBintemp'), os.path.dirname(toSHP), 'prepout'+self.aoiname+'.shp')   
+    cleanMe = gpd.read_file(toSHP, driver='shapefile')
+    #print(cleanMe)
+    cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
+    cleanMe['BinHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
+    try:
+        cleanMe = cleanMe.fillna('')
+    except:
+        pass
+    cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))
+    print([f.name for f in arcpy.ListFields(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))])
+    arcpy.Dissolve_management(in_features=os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'), out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_'+ self.binUnique[1], self.binUnique[0] + 'name', self.binUnique[0] + ' Name')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_BinHA', self.binUnique[0]+ '_ha', self.binUnique[0] +' Hectares')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_UrbanHA', 'UrbanHA', 'Urban Hectares')
@@ -420,9 +447,9 @@ class Waterfowlmodel:
     arcpy.FeatureClassToFeatureClass_conversion(os.path.join(self.scratch, 'AllDataBin'),self.scratch,self.aoiname+'_Output',self.binUnique[0] + " <> ''")
     if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_Output')):
       arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_Output'))
-    arcpy.Copy_management(os.path.join(self.scratch, self.aoiname+'_Output'), os.path.join(outputgdb, self.aoiname+'_Output'))
+    #arcpy.Copy_management(os.path.join(self.scratch, self.aoiname+'_Output'), os.path.join(outputgdb, self.aoiname+'_Output'))
     logging.info('\tCreating output')
-    return os.path.join(outputgdb, self.aoiname+'_Output')
+    return os.path.join(self.scratch, self.aoiname+'_Output')
 
   def mergeForWeb(self, mainModel, spEnergy, habPct, outputgdb):
     """
@@ -495,14 +522,14 @@ class Waterfowlmodel:
       #print('{} will become {}'.format(fldname, fldlst[0]))
       arcpy.AlterField_management(webReady, fldname, fldlst[0], fldlst[1])
     
-    for shp in [mainModel, spEnergy, habPct, webReady]:
-      #print('\n'+ shp)
-      #print([f.name for f in arcpy.ListFields(shp)])
-      if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_WebReady')):
-        arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_WebReady'))
-      arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady'))
-      logging.info('\tWeb ready')
-    return os.path.join(outputgdb, self.aoiname+'_WebReady')
+    #for shp in [mainModel, spEnergy, habPct, webReady]:
+    #  #print('\n'+ shp)
+    #  #print([f.name for f in arcpy.ListFields(shp)])
+    #  if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_WebReady')):
+    #    arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_WebReady'))
+    #  arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady'))
+    #  logging.info('\tWeb ready')
+    return webReady
 
   def calculateStandardizedABDU(self, WebReady):
     # create new fields
@@ -600,16 +627,22 @@ class Waterfowlmodel:
       # Process: Make Feature Layer
       if arcpy.Exists(aggToOut):
         logging.info('\tAlready dissolved and aggregated everything for ' + cat)
-        print('\tAlready dissolved and calculated, returning input')
-        return aggToOut
-      else:
+        print('\tAlready dissolved and calculated, Deleting', aggToOut)
+        arcpy.Delete_management(aggToOut)
+        #return aggToOut
+      #else:
         #print('make feature')
-        arcpy.MakeFeatureLayer_management(in_features=aggData, out_layer=outLayer,field_info=FieldsToAgg)
-        #print('union')
-        arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
-      #print('dissolve')
-      #print(Dissolve_Field_s_)
-      #print(AggStats)
+      print(aggData)
+      print(outLayer)
+      print(FieldsToAgg)
+      arcpy.MakeFeatureLayer_management(in_features=aggData, out_layer=outLayer,field_info=FieldsToAgg)
+      #print('union')
+      print('outlayer', outLayer)
+      print('outlayerI', outLayerI)
+      arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
+      print('dissolve')
+      print(Dissolve_Field_s_)
+      print(AggStats)
       arcpy.Dissolve_management(in_features=outLayerI, out_feature_class=aggToOut, dissolve_field=Dissolve_Field_s_, statistics_fields=AggStats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.Delete_management(outLayerI)
     except Exception as e:
@@ -769,6 +802,7 @@ class Waterfowlmodel:
     """
     if not arcpy.Exists(protectedEnergy):
       try:
+        print('Clipping protected energy')
         arcpy.Clip_analysis(mergedenergy, protectedMerge, protectedEnergy)
       except Exception as e:
         print('\t Need to repair')
@@ -790,7 +824,18 @@ class Waterfowlmodel:
       arcpy.management.Dissolve(os.path.join(self.scratch, 'protunion'), self.protectedMerge, None, None, "MULTI_PART", "DISSOLVE_LINES")
     if not len(arcpy.ListFields(self.protectedMerge,'CalcHA'))>0:
         arcpy.AddField_management(self.protectedMerge, 'CalcHA', "DOUBLE", 9, 2, "", "GIS Hectares") 
-    arcpy.CalculateGeometryAttributes_management(self.protectedMerge, "CalcHA AREA", area_unit="HECTARES")
+    #arcpy.CalculateGeometryAttributes_management(self.protectedMerge, "CalcHA AREA", area_unit="HECTARES")
+    toSHP = os.path.join(os.path.dirname(os.path.dirname(self.protectedMerge)), 'protmerge'+self.aoiname+'.shp')
+    arcpy.FeatureClassToFeatureClass_conversion(self.protectedMerge, os.path.dirname(toSHP), 'protmerge'+self.aoiname+'.shp')   
+    cleanMe = gpd.read_file(toSHP, driver='shapefile')
+    #print(cleanMe)
+    cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
+    cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
+    try:
+        cleanMe = cleanMe.fillna('')
+    except:
+        pass
+    cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'protmergeCleaned'+self.aoiname+'.shp'))
 
   @report_time
   def pandasMerge(self, pad, nced, output):
@@ -806,14 +851,16 @@ class Waterfowlmodel:
     :return output: Location of output
     :rtype output: str    
     """
-    pad = gpd.read_file(os.path.dirname(pad), layer=os.path.basename(pad)).buffer(0)
-    nced = gpd.read_file(os.path.dirname(nced), layer=os.path.basename(nced)).buffer(0)
-    diff = pad.difference(nced).append(nced.geometry)
-    #print(output)
+    pad = gpd.read_file(os.path.dirname(pad), layer=os.path.basename(pad), driver='FileGDB')
+    nced = gpd.read_file(os.path.dirname(nced), layer=os.path.basename(nced), driver='FileGDB')
+    #diff = pad.difference(nced).append(nced)
+    diff = gpd.overlay(pad, nced, how='union')
+    print('before',type(diff))
+    cc = diff.crs
+    diff['CalcHA'] = diff.geometry.area/10000 #/10,000 for Hectares
+    #diff = gpd.GeoDataFrame(diff, crs=cc)
+    print('after', type(diff))
     diff.to_file(output)
-    if not len(arcpy.ListFields(output,'CalcHA'))>0:
-        arcpy.AddField_management(output, 'CalcHA', "DOUBLE", 9, 2, "", "GIS Hectares") 
-    arcpy.CalculateGeometryAttributes_management(output, "CalcHA AREA", area_unit="HECTARES")
     return output
 
   @report_time
@@ -896,9 +943,10 @@ class Waterfowlmodel:
     for fc in [demand, energy]:
        if len(arcpy.ListFields(fc,'name'))>0:
          arcpy.DeleteField_management(fc,["name"])
-    if not arcpy.Exists(outLayer):
-      print('\tRun union')
-      arcpy.Union_analysis(in_features=unionme, out_feature_class=outLayer, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
+    if arcpy.Exists(outLayer):
+      arcpy.Delete_management(outLayer)
+    print('\tRun union')
+    arcpy.Union_analysis(in_features=unionme, out_feature_class=outLayer, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
     #if arcpy.Exists(os.path.join(os.path.dirname(self.scratch),'tbl.csv')):
     #  arcpy.Delete_management(os.path.join(os.path.dirname(self.scratch),'tbl.csv'))
     #arcpy.TableToTable_conversion(in_rows=outLayer, out_path=os.path.dirname(self.scratch), out_name="tbl.csv", where_clause="", field_mapping='avalNrgy "AvailableEnergy" true true false 8 Double 0 0 ,First,#,'+outLayer+',avalNrgy,-1,-1;CLASS "CLASS" true true false 255 Text 0 0 ,First,#,'+outLayer+',CLASS,-1,-1;CalcHA "Hectares" true true false 8 Double 0 0 ,First,#,'+outLayer+',CalcHA,-1,-1;kcal "kcal" true true false 4 Long 0 0 ,First,#,'+outLayer+',kcal,-1,-1;HUC12 "HUC12" true true false 12 Text 0 0 ,First,#,'+outLayer+',HUC12,-1,-1;Shape_Length "Shape_Length" false true true 8 Double 0 0 ,First,#,'+outLayer+',Shape_Length,-1,-1;Shape_Area "Shape_Area" false true true 8 Double 0 0 ,First,#,'+outLayer+',Shape_Area,-1,-1', config_keyword="")
