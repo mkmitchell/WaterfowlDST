@@ -272,6 +272,8 @@ def main(argv):
    print('merging to',os.path.join(outputgdb, 'ReadyForWeb'))
    arcpy.Merge_management(results,os.path.join(outputgdb, 'ReadyForWeb'))
 
+   calculateStandardizedABDU(os.path.join(outputgdb, ReadyForWeb))
+
    arcpy.env.workspace =outputgdb
    #for i in arcpy.ListFeatureClasses('*Output'):
    #   arcpy.Delete_management(i)
