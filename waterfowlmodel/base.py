@@ -531,7 +531,10 @@ class Waterfowlmodel:
       arcpy.Delete_management(os.path.join(self.scratch, self.aoiname+ '_WebReady'))
     else:
       pass
-    arcpy.CopyFeatures_management(mainModel, webReady)
+    if arcpy.Exists(webReady+'Mercator'):
+      arcpy.Delete_management(webReady+'Mercator')    
+    arcpy.Project_management(mainModel, webReady+'Mercator', arcpy.SpatialReference(102100))
+    arcpy.CopyFeatures_management(webReady+'Mercator', webReady)
     # field names FIX
     #print("File name: \n{}".format(spEnergy))
     spFields = [f.name for f in arcpy.ListFields(spEnergy)]
