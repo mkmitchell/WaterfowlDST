@@ -49,6 +49,44 @@ def calculate_field(df, inDataset, xTable, curclass):
         df['CLASS'] = df[curclass].map(reversed_dict)    
     return df    
 
+def calculateStandardizedABDU(WebReady):
+  print("Starting Standardization with ", WebReady)
+  # create new fields
+  arcpy.AddField_management(WebReady, 'abdu_norm_restoregoal_80th', "DOUBLE", "", "", "", "American Black Duck Normalized Restoration Goal")
+  arcpy.AddField_management(WebReady, "abdu_norm_protectgoal_80th", "DOUBLE", "", "", "", "American Black Duck Normalized Protection Goal")
+  fds = [f.name for f in arcpy.ListFields(WebReady)]
+
+  # create a list of unique values that include 0 to find the min and max values
+  def fdValues(fc, field):
+    with arcpy.da.SearchCursor(fc, [field]) as cursor:
+      return [row[0] for row in cursor]
+  
+  abdu_Demand = fdValues(WebReady, 'abdu_demand_80th_kcal')
+  abdu_Demand = [0 if v is None else v for v in abdu_Demand]
+  minVal = min(abdu_Demand)
+  maxVal = max(abdu_Demand)
+  print("min ABDU Demand Value = ", minVal)
+  print("max ABDU Demand Value = ", maxVal)
+
+  # Change Null Values to 0 for specific values; calculate standardized values
+  ####      0         1                             2                     3                               4                             5
+  fdList = ['huc12', 'abdu_demand_80th_kcal', 'restoregoal_80th_ha', 'protectgoal_80th_ha', 'abdu_norm_restoregoal_80th', 'abdu_norm_protectgoal_80th']
+  
+  with arcpy.da.UpdateCursor(WebReady, fdList) as cursor:
+    for row in cursor:
+      if row[1] is None:
+        row[1] = 0
+      if row[2] is None:
+        row[2] = 0
+      if row[3] is None:
+        row[3] = 0
+      zval = (row[1]-minVal)/(maxVal-minVal)
+      row[4] = zval * row[2]
+      row[5] = zval * row[3]
+      cursor.updateRow(row)
+
+  return WebReady
+
 class Waterfowlmodel:
   """Class to store waterfowl model parameters."""
   def __init__(self, aoi, aoiname, wetland, kcalTable, crosswalk, demand, urban, binIt, binUnique, extra, fieldtable, scratch):
@@ -531,44 +569,6 @@ class Waterfowlmodel:
     #  logging.info('\tWeb ready')
     return webReady
 
-  def calculateStandardizedABDU(self, WebReady):
-    print("Starting Standardization with ", WebReady)
-    # create new fields
-    arcpy.AddField_management(WebReady, 'abdu_norm_restoregoal_80th', "DOUBLE", "", "", "", "American Black Duck Normalized Restoration Goal")
-    arcpy.AddField_management(WebReady, "abdu_norm_protectgoal_80th", "DOUBLE", "", "", "", "American Black Duck Normalized Protection Goal")
-    fds = [f.name for f in arcpy.ListFields(WebReady)]
-
-    # create a list of unique values that include 0 to find the min and max values
-    def fdValues(fc, field):
-      with arcpy.da.SearchCursor(fc, [field]) as cursor:
-        return [row[0] for row in cursor]
-    
-    abdu_Demand = fdValues(WebReady, 'abdu_demand_80th_kcal')
-    abdu_Demand = [0 if v is None else v for v in abdu_Demand]
-    minVal = min(abdu_Demand)
-    maxVal = max(abdu_Demand)
-    print("min ABDU Demand Value = ", minVal)
-    print("max ABDU Demand Value = ", maxVal)
-
-    # Change Null Values to 0 for specific values; calculate standardized values
-    ####      0         1                             2                     3                               4                             5
-    fdList = ['huc12', 'abdu_demand_80th_kcal', 'restoregoal_80th_ha', 'protectgoal_80th_ha', 'abdu_norm_restoregoal_80th', 'abdu_norm_protectgoal_80th']
-    
-    with arcpy.da.UpdateCursor(WebReady, fdList) as cursor:
-      for row in cursor:
-        if row[1] is None:
-          row[1] = 0
-        if row[2] is None:
-          row[2] = 0
-        if row[3] is None:
-          row[3] = 0
-        zval = (row[1]-minVal)/(maxVal-minVal)
-        row[4] = zval * row[2]
-        row[5] = zval * row[3]
-        cursor.updateRow(row)
-
-    return WebReady
-
   def unionEnergy(self, supply, demand):
     """
     Merges supply and demand energy features into one feature to calculate energy surplus or deficit.
@@ -1032,6 +1032,3 @@ class Waterfowlmodel:
       arcpy.DeleteField_management(inDataset, 'wtMeankcal')
     arcpy.da.ExtendTable(inDataset, self.binUnique[0], outnp, self.binUnique[0])
     return
-
-
-      
