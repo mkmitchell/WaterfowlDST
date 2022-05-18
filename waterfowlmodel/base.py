@@ -430,18 +430,18 @@ class Waterfowlmodel:
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_LTASurpDef', 'surpdef_lta_kcal', 'LTA Energy Surplus or Deficit (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_X80SurpDef', 'surpdef_80th_kcal', 'X80 Energy Surplus or Deficit (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MEAN_wtMeankcal', 'wtMean_kcal_per_ha', 'Weighted mean (kcal)')
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'available_ha', "DOUBLE", 9, 2, "", "Potentiallyl Available Habitat Hectares (Bin HA - Urban HA - Protected HA)")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'available_ha', "DOUBLE", 9, 2, "", "Potentially Available Habitat Hectares")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='available_ha', expression="!" + self.binUnique[0] + "_ha! - !UrbanHA! - !protected_ha!", expression_type="PYTHON_9.3", code_block="")
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_lta_kcal', "DOUBLE", 9, 2, "", "LTA Energy Protection Needed (Habitat Energy demand - protected habitat energy) (kcal)")
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_80th_kcal', "DOUBLE", 9, 2, "", "X80 Energy Protection Needed (Habitat Energy demand - protected habitat energy) (kcal)")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_lta_kcal', "DOUBLE", 9, 2, "", "Long-Term Average Energy Protection Needed (kcal)")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_80th_kcal', "DOUBLE", 9, 2, "", "80th Percentile Energy Protection Needed (kcal)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='nrgprot_lta_kcal', expression="!demand_lta_kcal! - !protected_kcal! if !demand_lta_kcal! - !protected_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='nrgprot_80th_kcal', expression="!demand_80th_kcal! - !protected_kcal! if !demand_80th_kcal! - !protected_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'restoregoal_lta_ha', "DOUBLE", 9, 2, "", "LTA Restoration HA based off weighted mean (Surplus/weighted mean)")
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'restoregoal_80th_ha', "DOUBLE", 9, 2, "", "X80 Restoration HA based off weighted mean (Surplus/weighted mean)")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'restoregoal_lta_ha', "DOUBLE", 9, 2, "", "Long-Term Average Restoration Objective (ha)")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'restoregoal_80th_ha', "DOUBLE", 9, 2, "", "80th Percentile Restoration Objective (ha)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='restoregoal_lta_ha', expression="abs(!surpdef_lta_kcal!/!wtMean_kcal_per_ha!) if !surpdef_lta_kcal! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='restoregoal_80th_ha', expression="abs(!surpdef_80th_kcal!/!wtMean_kcal_per_ha!) if !surpdef_80th_kcal! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'protectgoal_lta_ha', "DOUBLE", 9, 2, "", "Protection HA based off weighted mean (Energy protected needed/weighted mean)")
-    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'protectgoal_80th_ha', "DOUBLE", 9, 2, "", "X80 Protection HA based off weighted mean (Energy protected needed/weighted mean)")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'protectgoal_lta_ha', "DOUBLE", 9, 2, "", "Long-Term Average Protection Objective (ha)")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'protectgoal_80th_ha', "DOUBLE", 9, 2, "", "80th Percentile Protection Objective (ha)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='protectgoal_lta_ha', expression="(!nrgprot_lta_kcal!/!wtMean_kcal_per_ha!) if !nrgprot_lta_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='protectgoal_80th_ha', expression="(!nrgprot_80th_kcal!/!wtMean_kcal_per_ha!) if !nrgprot_80th_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")    
     arcpy.FeatureClassToFeatureClass_conversion(os.path.join(self.scratch, 'AllDataBin'),self.scratch,self.aoiname+'_Output',self.binUnique[0] + " <> ''")
@@ -532,9 +532,11 @@ class Waterfowlmodel:
     return webReady
 
   def calculateStandardizedABDU(self, WebReady):
+    print("Starting Standardization with ", WebReady)
     # create new fields
     arcpy.AddField_management(WebReady, 'abdu_norm_restoregoal_80th', "DOUBLE", "", "", "", "American Black Duck Normalized Restoration Goal")
     arcpy.AddField_management(WebReady, "abdu_norm_protectgoal_80th", "DOUBLE", "", "", "", "American Black Duck Normalized Protection Goal")
+    fds = [f.name for f in arcpy.ListFields(WebReady)]
 
     # create a list of unique values that include 0 to find the min and max values
     def fdValues(fc, field):
@@ -545,11 +547,14 @@ class Waterfowlmodel:
     abdu_Demand = [0 if v is None else v for v in abdu_Demand]
     minVal = min(abdu_Demand)
     maxVal = max(abdu_Demand)
+    print("min ABDU Demand Value = ", minVal)
+    print("max ABDU Demand Value = ", maxVal)
 
     # Change Null Values to 0 for specific values; calculate standardized values
     ####      0         1                             2                     3                               4                             5
-    fds = ['huc12', 'abdu_demand_80th_kcal', 'restoregoal_80th_ha', 'protectgoal_80th_ha', 'abdu_norm_restoregoal_80th', 'abdu_norm_protectgoal_80th']
-    with arcpy.da.UpdateCursor(fc, fds) as cursor:
+    fdList = ['huc12', 'abdu_demand_80th_kcal', 'restoregoal_80th_ha', 'protectgoal_80th_ha', 'abdu_norm_restoregoal_80th', 'abdu_norm_protectgoal_80th']
+    
+    with arcpy.da.UpdateCursor(WebReady, fdList) as cursor:
       for row in cursor:
         if row[1] is None:
           row[1] = 0
@@ -561,8 +566,8 @@ class Waterfowlmodel:
         row[4] = zval * row[2]
         row[5] = zval * row[3]
         cursor.updateRow(row)
-    return
 
+    return WebReady
 
   def unionEnergy(self, supply, demand):
     """
