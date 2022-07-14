@@ -15,6 +15,8 @@ from functools import partial
 from contextlib import contextmanager
 from pyproj.crs import CRS
 import geopandas as gpd
+from multiprocessing import Pool
+from multiprocessing_logging import install_mp_handler
 
 def printlog(txt, var):
    print(txt + ':', var)
@@ -109,7 +111,7 @@ def main(argv):
    # parse the command line
    args = parser.parse_args()
    print('')
-   #print(args)
+   
    if len(argv) < 12:
       parser.print_help()
       sys.exit(2)    
@@ -184,15 +186,10 @@ def main(argv):
       os.mkdir(outputFolder)
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
       outputgdb = os.path.join(workspace, args.aoi[0], 'output', args.aoi[0] + "_output.gdb")
-      #arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
       arcpy.CreateFileGDB_management(outputFolder, args.aoi[0]+'_output.gdb')
    else:
-      #print("Project folder already exists.  Using it")
       scratchgdb = os.path.join(workspace, args.aoi[0], args.aoi[0] + "_scratch.gdb")
       outputgdb = os.path.join(workspace, args.aoi[0], 'output', args.aoi[0] + "_output.gdb")
-      #if not (os.path.exists(scratchgdb)):
-         #print('Creating scratch geodatabase: ', scratchgdb)
-         #arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), args.aoi[0]+'_scratch.gdb')
       if not os.path.exists(outputFolder):
          os.mkdir(outputFolder)
       if not (os.path.exists(outputgdb)):
@@ -212,7 +209,8 @@ def main(argv):
    print('#####################################')
    print("Current date and time: ", datetime.datetime.now().strftime('%H:%M:%S on %A, %B the %dth, %Y'))
    comparetime = datetime.datetime.now()
-   logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)                 
+   logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)
+   install_mp_handler()             
    wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
    demand = waterfowlmodel.dataset.Dataset(demand, scratchgdb)
    urban = waterfowlmodel.dataset.Dataset(urban, scratchgdb)
@@ -250,6 +248,7 @@ def main(argv):
    # Use aoi and aoifield to create list of unique elements.  Create list of waterfowlmodel init params for each unique aoi
    dstList = []
    unique_values = set(row[0] for row in arcpy.da.SearchCursor(aoi, aoifield))
+   #unique_values = {'WI'} # Overwriting the state selection here.
    for oneAOI in unique_values:
       scratchgdb = os.path.join(workspace, args.aoi[0], oneAOI + "_scratch.gdb")
       if not (os.path.exists(scratchgdb)):
@@ -261,24 +260,20 @@ def main(argv):
 
    # Setup pool and map
    print("Creating pool")
-   with poolcontext(processes=3) as pool:
+   with poolcontext(processes=8) as pool:
       results = pool.map(partial(calc, debug=debug, args=args, outputgdb=outputgdb, nced=nced, padus=padus, aoiname=aoiname, aoiworkspace=aoiworkspace, cleanRun=cleanRun, fieldTable=fieldTable), dstList)
    printlog('\t Returning results', ' '.join(results))
-   #results = calc(dstinfo=dstList[0], debug=debug, args=args, outputgdb=outputgdb, nced=nced, padus=padus, aoiname=aoiname, aoiworkspace=aoiworkspace, cleanRun=cleanRun, fieldTable=fieldTable)
 
-   print(results)
    if arcpy.Exists(os.path.join(outputgdb, 'ReadyForWeb')):
       arcpy.Delete_management(os.path.join(outputgdb, 'ReadyForWeb'))
    print('merging to',os.path.join(outputgdb, 'ReadyForWeb'))
+   results = list(filter(None, results)) # remove empty strings in list
    arcpy.Merge_management(results,os.path.join(outputgdb, 'ReadyForWeb'))
 
-   waterfowl.calculateStandardizedABDU(os.path.join(outputgdb, 'ReadyForWeb'))
+   waterfowl.calculateStandardizedABDU(os.path.join(outputgdb, 'ReadyForWeb'), binUnique)
    arcpy.env.workspace = outputgdb
    if debug[9]: #Zip it
       print('\n#### Zip data ####')
-      
-      #print('\tAdd HUC')
-      #waterfowlmodel.zipup.AddHUCNames(outData, binIt,'HUC12', 'huc12')
       arcpy.ClearWorkspaceCache_management()
       try:
          waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
@@ -293,7 +288,6 @@ def main(argv):
 def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cleanRun, fieldTable):
    startT = time.perf_counter()
    print('\n#### Create waterfowl object for ', dstinfo[1])   
-   #print('dst', dstinfo)
    aoiname = dstinfo[1]
    dst = waterfowl.Waterfowlmodel(dstinfo[0], dstinfo[1],dstinfo[2],dstinfo[3],dstinfo[4],dstinfo[5],dstinfo[6],dstinfo[7],dstinfo[8],dstinfo[9],dstinfo[10], dstinfo[11])
    print('#####################################')   
@@ -323,10 +317,11 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
          arcpy.Delete_management(dst.mergedenergy + 'Selection')
       arcpy.CopyFeatures_management(allEnergy, dst.mergedenergy + 'Selection')
       dst.mergedenergy = dst.mergedenergy + 'Selection' 
-      #if not arcpy.Exists(os.path.join(os.path.dirname(dst.mergedenergy), os.path.basename(dst.mergedenergy) + '_Geotogeo')):
-      #dst.cleanMe(dst.mergedenergy)
       print('before prep', dst.mergedenergy)
       dst.mergedenergy = dst.prepEnergyFast(dst.mergedenergy, dst.kcalTbl)
+      dst.mergedenergy = os.path.join(dst.scratch,'MergedEnergySelectionclean')
+      coord_sys = arcpy.Describe(dst.wetland).spatialReference
+      arcpy.DefineProjection_management(dst.mergedenergy, coord_sys)
       print('\tMerge supply Energy for ', dstinfo[1])
       dst.energysupply = dst.aggproportion(dst.binIt, dst.mergedenergy, "OBJECTID", ["avalNrgy", "CalcHA"], dst.binUnique, dst.scratch, "supplyenergy")
       if not len(arcpy.ListFields(dst.energysupply,'THabNrg'))>0:
@@ -340,19 +335,22 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
          print('Energy needs to be run')
          sys.exit()
       toSHP = os.path.join(os.path.dirname(os.path.dirname(dst.mergedenergy)), 'test'+dst.aoiname+'.shp')         
-      if arcpy.Exists(os.path.join(os.path.dirname(toSHP), 'testCleaned'+dst.aoiname+'.shp')):
-         dst.mergedenergy = os.path.join(os.path.dirname(toSHP), 'testCleaned'+dst.aoiname+'.shp')
+      if arcpy.Exists(os.path.join(dst.scratch,'MergedEnergySelectionclean')):
+         dst.mergedenergy = os.path.join(dst.scratch,'MergedEnergySelectionclean')
       else:
          print('Energy needs to be run')
          sys.exit()
 
    if debug[1]: #Energy demand
       printlog('\n#### ENERGY DEMAND for ', dstinfo[1])
+      print('\n # dst.demand', dst.demand)
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
+      print(arcpy.management.GetCount(selectDemand)[0])
       if arcpy.management.GetCount(selectDemand)[0] > "0":
          arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
          demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
          mergedAll, wtmarray = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
+         mergedAll = arcpy.SelectLayerByAttribute_management(in_layer_or_view=mergedAll, selection_type="NEW_SELECTION", where_clause=dst.binUnique[0]+ " <> ''")
          dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
       elif arcpy.management.GetCount(selectDemand)[0] == "0":
          print('No records with "All" species. Not calculated')
@@ -360,12 +358,10 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
       dst.demand = os.path.join(dst.scratch, 'aggByFieldenergydemanddissolveHUC')
       #dst.origDemand = dst.demand.inData
-
    if debug[2]: # Species proportion,use the original demand layer, and not the derived demand layer that only includes summed values for all species.
       printlog('\n#### ENERGY DEMAND BY SPECIES for ', dstinfo[1])
       dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
       outSpecies = dst.energyBySpecies(dst.origDemand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'))
-
    if debug[3]: #Public lands
       printlog('\n#### PUBLIC LANDS for ', dstinfo[1])
       nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
@@ -416,7 +412,6 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       ymin = desc.extent.YMin
       ymax = desc.extent.YMax
       rectangle = str(xmin) + ' ' + str(ymin) + ' ' + str(xmax) + ' ' + str(ymax)
-      #print(os.path.join(dst.scratch, 'urbanclip' + aoiname))
       if not arcpy.Exists(os.path.join(dst.scratch, 'urbanclip' + aoiname)):
          print(dst.urban, rectangle)
          print(dst.scratch)
@@ -428,14 +423,8 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       urbanExtract.save(os.path.join(dst.scratch, 'urbanready' + aoiname))
       arcpy.RasterToPolygon_conversion(os.path.join(dst.scratch, 'urbanready' + aoiname), os.path.join(dst.scratch, 'urbanPoly' + aoiname), "SIMPLIFY", "VALUE")
       dst.urban = os.path.join(dst.scratch, 'urbanPoly' + aoiname)
-      #dst.urban = dst.cleanMe(dst.urban)
-      #if not len(arcpy.ListFields(dst.urban,'CalcHA'))>0:
-      #   arcpy.AddField_management(dst.urban, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
-      #arcpy.CalculateGeometryAttributes_management(dst.urban, "CalcHA AREA", area_unit="HECTARES")
       toSHP = os.path.join(os.path.dirname(os.path.dirname(dst.urban)), 'urban'+aoiname+'.shp')
-      arcpy.FeatureClassToFeatureClass_conversion(dst.urban, os.path.dirname(toSHP), 'urban'+aoiname+'.shp')   
-      cleanMe = gpd.read_file(toSHP, driver='shapefile')
-      #print(cleanMe)
+      cleanMe = gpd.read_file(os.path.dirname(dst.urban), layer=os.path.basename(dst.urban), driver='FileGDB')
       cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
       cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
       try:
@@ -447,6 +436,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       dst.urban = dst.aggproportion(dst.binIt, dst.urban, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "urban")
       if len(arcpy.ListFields(dst.urban,'SUM_CalcHA'))>0:
          arcpy.AlterField_management(dst.urban, 'SUM_CalcHA', 'UrbanHA', 'Urban Hectares')
+      printlog('Urban done for', dstinfo[1])
    else:
       dst.urban = os.path.join(dst.scratch, 'aggtourban')
    
@@ -461,7 +451,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       mergebin.append(os.path.join(dst.scratch, 'aggtoprotectedbin')) #Protected acres
       mergebin.append(dst.protectedEnergy) #Protected energy
       mergebin.append(dst.urban) #Urban - available HA
-      outData = dst.dstOutput(mergebin, [dst.binUnique], outputgdb)
+      outData = dst.dstOutput(mergebin, outputgdb)
    else:
       outData = os.path.join(dst.scratch, dst.aoiname+'_Output')
 
@@ -480,6 +470,15 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       inenergystats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'mergedEnergyStats'), ['SUM_avalNrgy'])
       indemandstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'demandStats'), ['SUM_LTADemand', 'SUM_LTADUD'])
       inprotstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'protStats'), ['SUM_CalcHA'])
+      with open(os.path.join(os.path.dirname(dst.scratch),dstinfo[1]+'_OutputCheck.txt'), 'w') as f:
+         f.write('\nOutput energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
+         f.write('tEnergy difference %: {}'.format(int((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100)))
+         f.write('\nOutput demand: {}\nInput demand: {}'.format(outputStats[0][1], indemandstats[0][0]))
+         f.write('\tDemand  difference %: {}'.format(int((outputStats[0][1] - indemandstats[0][0])/(outputStats[0][1] + indemandstats[0][0])*100)))
+         f.write('\nOutput DUD: {}\nInput DUD: {}'.format(outputStats[0][2], indemandstats[0][1]))
+         f.write('\tDUD  difference %: {}'.format(int((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100)))
+         f.write('\nOutput Protection HA: {}\nInput HA: {}'.format(outputStats[0][3], inprotstats[0][0]))
+         f.write('\tProtection  difference %: {}'.format(int((outputStats[0][3] - inprotstats[0][0])/(outputStats[0][3] + inprotstats[0][0])*100)))
       print('\nOutput energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
       print('\tEnergy difference %: {}'.format(int((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100)))
       print('\nOutput demand: {}\nInput demand: {}'.format(outputStats[0][1], indemandstats[0][0]))
@@ -488,11 +487,13 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       print('\tDUD  difference %: {}'.format(int((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100)))
       print('\nOutput Protection HA: {}\nInput HA: {}'.format(outputStats[0][3], inprotstats[0][0]))
       print('\tProtection  difference %: {}'.format(int((outputStats[0][3] - inprotstats[0][0])/(outputStats[0][3] + inprotstats[0][0])*100)))
-
+   
+   webReady = ""
    if debug[8]: #Merge for web
       try:
          print('\n#### Merging for Web pipeline ####')
          webReady = dst.mergeForWeb(outData, outSpecies if debug[2] else os.path.join(dst.scratch, 'DemandBySpecies'), os.path.join(dst.scratch, 'HabitatProportion'), outputgdb)
+         print(webReady)
       except Exception as e:
          print(e)
    else:

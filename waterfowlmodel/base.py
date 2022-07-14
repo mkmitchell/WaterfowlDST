@@ -13,7 +13,9 @@ import numpy as np
 from arcgis.features import FeatureLayer, GeoAccessor, GeoSeriesAccessor
 import geopandas as gpd
 from pyproj.crs import CRS
+from multiprocessing_logging import install_mp_handler
 
+install_mp_handler()    
 def report_time(func):
     '''Decorator reporting the execution time'''
     @wraps(func)
@@ -37,30 +39,30 @@ def printlog(txt, var):
    logging.info(txt + ': ' + var)
   
 def calculate_field(df, inDataset, xTable, curclass):
-    if int(arcpy.GetCount_management(inDataset)[0]) > 0:
-        file_extension = os.path.splitext(xTable)[-1].lower()
-        if file_extension == ".json":
-          dataDict = json.load(open(xTable))
-        else:
-          with open(xTable, mode='r') as infile:
-            reader = csv.reader(infile)
-            dataDict = {rows[0]:rows[1].split(',') for rows in reader}
-        reversed_dict = {val: key.replace('_', '') for key in dataDict for val in dataDict[key]}
-        df['CLASS'] = df[curclass].map(reversed_dict)    
-    return df    
+  '''Helper function for calculating dataset landcover class from csv or json'''
+  if int(arcpy.GetCount_management(inDataset)[0]) > 0:
+      file_extension = os.path.splitext(xTable)[-1].lower()
+      if file_extension == ".json":
+        dataDict = json.load(open(xTable))
+      else:
+        with open(xTable, mode='r') as infile:
+          reader = csv.reader(infile)
+          dataDict = {rows[0]:rows[1].split(',') for rows in reader}
+      reversed_dict = {val: key.replace('_', '') for key in dataDict for val in dataDict[key]}
+      df['CLASS'] = df[curclass].map(reversed_dict)    
+  return df    
 
-def calculateStandardizedABDU(WebReady):
+def calculateStandardizedABDU(WebReady, binUnique):
+  '''Helper function for calculating standardized values for ABDU'''
   print("Starting Standardization with ", WebReady)
   # create new fields
   arcpy.AddField_management(WebReady, 'abdu_norm_restoregoal_80th', "DOUBLE", "", "", "", "American Black Duck Normalized Restoration Goal")
   arcpy.AddField_management(WebReady, "abdu_norm_protectgoal_80th", "DOUBLE", "", "", "", "American Black Duck Normalized Protection Goal")
   fds = [f.name for f in arcpy.ListFields(WebReady)]
-
   # create a list of unique values that include 0 to find the min and max values
   def fdValues(fc, field):
     with arcpy.da.SearchCursor(fc, [field]) as cursor:
       return [row[0] for row in cursor]
-  
   abdu_Demand = fdValues(WebReady, 'abdu_demand_80th_kcal')
   abdu_Demand = [0 if v is None else v for v in abdu_Demand]
   minVal = min(abdu_Demand)
@@ -70,7 +72,7 @@ def calculateStandardizedABDU(WebReady):
 
   # Change Null Values to 0 for specific values; calculate standardized values
   ####      0         1                             2                     3                               4                             5
-  fdList = ['huc12', 'abdu_demand_80th_kcal', 'restoregoal_80th_ha', 'protectgoal_80th_ha', 'abdu_norm_restoregoal_80th', 'abdu_norm_protectgoal_80th']
+  fdList = [binUnique[0], 'abdu_demand_80th_kcal', 'restoregoal_80th_ha', 'protectgoal_80th_ha', 'abdu_norm_restoregoal_80th', 'abdu_norm_protectgoal_80th']
   
   with arcpy.da.UpdateCursor(WebReady, fdList) as cursor:
     for row in cursor:
@@ -88,14 +90,14 @@ def calculateStandardizedABDU(WebReady):
   return WebReady
 
 class Waterfowlmodel:
-  """Class to store waterfowl model parameters."""
+  """Stores waterfowl model parameters and methods."""
   def __init__(self, aoi, aoiname, wetland, kcalTable, crosswalk, demand, urban, binIt, binUnique, extra, fieldtable, scratch):
     """
     Creates a waterfowl model object.
     
     :param aoi: feature dataset of area of interest
     :type aoi: str
-    :param aoiname: Name of area of interest
+    :param aoiname: Name of area of interest used for unique naming
     :type aoiname: str    
     :param wetland: Wetland feature dataset (e.g. National Wetland Inventory)
     :type wetland: str
@@ -103,17 +105,18 @@ class Waterfowlmodel:
     :type kcalTable: str
     :param crosswalk: CSV file relating wetland habitat types to kcal csv table
     :type crosswalk: str
-    :param demand: NAWCA stepdown Duck Use Days objectives
+    :param demand: Feature dataset of NAWCA stepdown Duck Use Days objectives
     :type demand: str
-    :param urban: Spatial dataset of impervious and built features 
+    :param urban: Raster dataset of impervious and built features 
     :type urban: str    
     :param binIt: Feature dataset of aggregation features (e.g. HUC12 watersheds)
     :type binIt: str
-    :param binUnique: Unique field of aggregation feature (e.g. HUC12 ID number)
+    :param binUnique: Unique fields for aggregation (e.g. HUC12 ID number)
     :type binUnique: str
-    :param extra: List of extra datasets and their corresponding crossover table
+    :param extra: List of extra feature datasets and their corresponding crossover table
     :type extra: str
-    :param fieldtable
+    :param fieldtable Crosswalk table to standardize field names and aliases
+    :type fieldtable str
     :param scratch: Scratch geodatabase location
     :type scratch: str 
     """
@@ -127,7 +130,7 @@ class Waterfowlmodel:
     self.kcalList = self.getHabList()
     self.crossTbl = crosswalk
     self.demand = self.projAlbers(self.clipStuff(demand, 'demand'), 'Demand')
-    self.urban = urban#self.projAlbers(self.clipStuff(urban, 'urban'), 'Urban')
+    self.urban = urban
     self.extra = self.processExtra(extra)
     self.mergedenergy = os.path.join(self.scratch, 'MergedEnergy')
     self.protectedMerge = os.path.join(self.scratch, 'MergedProtLands')
@@ -164,6 +167,7 @@ class Waterfowlmodel:
 
   def selectBins(self, aoi, bins):
     """
+    DEPRECATED
     Selects bins that intersect the AOI.  Incorporated to remove edge effect error.
 
     :param aoi: Features used as the area of interest to select intersecting bin features.  Feature AOI name
@@ -234,6 +238,7 @@ class Waterfowlmodel:
 
   def crossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
     """
+    Currently used for the extra datasets only.  Most likely will deprecate and replace with a faster version.
     Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.
 
     :param inDataset: Feature to be updated with a new 'CLASS' field
@@ -272,10 +277,6 @@ class Waterfowlmodel:
                     cursor.updateRow(row)
                   except Exception as e:
                     print(e)
-                    print(row[0])
-                    print(row[1])
-                    print(type(row[1]))
-                    sys.exit()
             else:
               continue
           else:
@@ -284,6 +285,17 @@ class Waterfowlmodel:
       return
   
   def supaCrossClass(self, inDataset, xTable, curclass='ATTRIBUTE'):
+    """
+    Faster version of self.crossClass used for NWI.
+    Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.
+
+    :param inDataset: Feature to be updated with a new 'CLASS' field
+    :type inDataset: str
+    :param xTable: Location of csv or json file with two columns, original class and the class it's changing to
+    :type xTable: str
+    :param curclass: Field that lists current class within inDataset
+    :type curclass: str.
+    """    
     df = make_df(inDataset)
     outdf = calculate_field(df, inDataset, xTable, curclass)
     outdf = outdf[['OBJECTID', 'CLASS']]
@@ -322,7 +334,8 @@ class Waterfowlmodel:
 
   def prepEnergyFast(self, inDataset, xTable):
     """
-    Calculates habitat area and energy of the input dataset
+    Calculates habitat area and energy of the input dataset.  Utilizes geopandas which has been much faster than arcpy.  Not without issues (Larger than 2GB shapefile).
+    Incorporated a workaround by creating a new empty feature dataset in a file geodatabase and using an insertcursor to write each row from the geopandas dataframe.
 
     :param inDataset: Feature to be updated with kcal values that relate to the class
     :type inDataset: str
@@ -340,17 +353,34 @@ class Waterfowlmodel:
     if not len(arcpy.ListFields(inDataset,'CalcHA'))>0:
       arcpy.AddField_management(inDataset, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
     toSHP = os.path.join(os.path.dirname(os.path.dirname(inDataset)), 'test'+self.aoiname+'.shp')
-    arcpy.FeatureClassToFeatureClass_conversion(inDataset, os.path.dirname(toSHP), 'test'+self.aoiname+'.shp')   
-    cleanMe = gpd.read_file(toSHP, driver='shapefile')
+    #FAILING to write entire dataset... soemtimes #arcpy.FeatureClassToFeatureClass_conversion(inDataset, os.path.dirname(toSHP), 'test'+self.aoiname+'.shp')   
+    cleanMe = gpd.read_file(os.path.dirname(inDataset), layer=os.path.basename(inDataset), driver='FileGDB')
+    #cleanMe = gpd.read_file(toSHP, driver='shapefile')
     #print(cleanMe)
+    cleanMe = cleanMe[['kcal', 'CLASS', 'avalNrgy', 'CalcHA','geometry']]
     cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
+    #cleanMe = cleanMe.simplify(5)
+    #cleanMe = cleanMe[~cleanMe['CLASS'].is_empty]
+    cleanMe = cleanMe[~cleanMe['CLASS'].isnull()]
+    cleanMe = cleanMe.explode(ignore_index=True)
     cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
     try:
       cleanMe = cleanMe.fillna('')
     except:
       pass
-    cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'testCleaned'+self.aoiname+'.shp'))
-    inDataset = os.path.join(os.path.dirname(toSHP), 'testCleaned'+self.aoiname+'.shp')
+    cleanMe['kcal'] = 0
+    cleanMe['avalNrgy'] = 0
+    #cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'testCleaned'+self.aoiname+'.shp'))
+    arcpy.CreateFeatureclass_management(os.path.dirname(inDataset), os.path.basename(inDataset)+"clean",'POLYGON', inDataset)
+    spr = arcpy.Describe(inDataset).spatialReference
+    with arcpy.da.InsertCursor(inDataset+"clean",['kcal', 'CLASS', 'avalNrgy', 'CalcHA', 'SHAPE@']) as cursor:
+      for index,row in cleanMe.iterrows():
+        tmp = cleanMe.loc[index]
+        cursor.insertRow((0, tmp['CLASS'],0, tmp['CalcHA'], arcpy.FromWKT(tmp.geometry.to_wkt(),spr)))
+    del cursor
+    #cleanMe.to_file(os.path.join())
+    #inDataset = os.path.join(os.path.dirname(toSHP), 'testCleaned'+self.aoiname+'.shp')
+    inDataset = inDataset+"clean"
     # Read data from file:
     print('\tReading in habitat file')
     file_extension = os.path.splitext(xTable)[-1].lower()
@@ -363,7 +393,6 @@ class Waterfowlmodel:
     print('\tCalculating available energy for', inDataset)
     with arcpy.da.UpdateCursor(inDataset, ['kcal', 'CLASS', 'avalNrgy', 'CalcHA']) as cursor:
       print('Entering calculation')
-      print(cursor)
       for row in cursor:
         if row[0] is None or row[0]== 0:
           for key, value in dataDict.items():
@@ -373,40 +402,26 @@ class Waterfowlmodel:
                 row[2] = float(value[0]) * float(row[3])
                 cursor.updateRow(row)
             except Exception as e:
+              print('Error in calculating available habitat')
               print('Error', e)
-              print('Class', key)
-              print('avalNrgy', value)
-              print('CalcHA', row[3])
         else:
+          print('Error in calculating energy')
           continue
       try:
         del cursor, row
       except:
-        print('all calculated or error with row')
-        sys.exit()
+        print('error with row')
+    print('Energy calculated')
     return inDataset
 
-  def dstOutput(self, mergebin, dissolveFields, outputgdb):
+  def dstOutput(self, mergebin, outputgdb):
     """
     Runs energy difference between NAWCA stepdown objectives and available habitat.
 
-    :param mergebin: List that holds all datasets to be merged for output
-    :type mergebin: list
-    :param dissolveFields: Unique field that all features are joined by
-    :type dissolveFields: str
-    :param outputgdb: Output gdb that will be zipped and shipped
-    :type outputgdb: str   
-    :return: Shapefile containing model results at the county level
-    :rtype: str
-    """
-    print("Mergebin: {}".format(mergebin))
-    if arcpy.Exists(os.path.join(self.scratch, 'AllDataBintemp')):
-      arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBintemp'))
-    arcpy.Merge_management(mergebin, os.path.join(self.scratch, 'AllDataBintemp'))
-    """
+    Calculations:
     Energy supply
-    Total habitat energy within huc - THabNrg
-    Total habitat hectares within huc - THabHA
+        Total habitat energy within huc - THabNrg
+        Total habitat hectares within huc - THabHA
 
     Energy demand
         LTA and X80 DUD by huc - TLTADUD anc X80DUD
@@ -425,14 +440,24 @@ class Waterfowlmodel:
         Energy Protection needed - NrgProtRq
         Restoration HA based off of weighted mean - RstorHA
         Protection HA based off weighted mean - RstorProtHA  
+
+    :param mergebin: List that holds all datasets to be merged for output
+    :type mergebin: list
+    :param outputgdb: Output gdb that will be zipped and shipped
+    :type outputgdb: str   
+    :return: Shapefile containing model results at the county level
+    :rtype: str
     """
+    print("Mergebin: {}".format(mergebin))
+    if arcpy.Exists(os.path.join(self.scratch, 'AllDataBintemp')):
+      arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBintemp'))
+    arcpy.Merge_management(mergebin, os.path.join(self.scratch, 'AllDataBintemp'))
     print('\tDissolving features and fixing fields')
     fields = self.binUnique[1] +" MAX; BinHA SUM; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal MEAN;"
     if arcpy.Exists(os.path.join(self.scratch, 'AllDataBin')):
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBin'))
     #print(fields)
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),self.binUnique[1]))>0:
-      print(self.binUnique[1] + " doesn't exist.  Need to append")
       addHuc = arcpy.da.FeatureClassToNumPyArray(self.binIt, [self.binUnique[0], self.binUnique[1]], null_value='')
       arcpy.da.ExtendTable(os.path.join(self.scratch, 'AllDataBintemp'), self.binUnique[0], addHuc, self.binUnique[0])
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),'BinHA'))>0:
@@ -449,7 +474,7 @@ class Waterfowlmodel:
     except:
         pass
     cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))
-    print([f.name for f in arcpy.ListFields(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))])
+    #print([f.name for f in arcpy.ListFields(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))])
     arcpy.Dissolve_management(in_features=os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'), out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_'+ self.binUnique[1], self.binUnique[0] + 'name', self.binUnique[0] + ' Name')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_BinHA', self.binUnique[0]+ '_ha', self.binUnique[0] +' Hectares')
@@ -543,8 +568,8 @@ class Waterfowlmodel:
     #print("Habitat Fields: \n{}".format(habFields))
 
     try:  
-      arcpy.management.JoinField(webReady, 'huc12', spEnergy, 'huc12', ['mall_ltadud', 'mall_lta_pop_obj', 'mall_lta_demand', 'mall_x80_dud', 'mall_x80_pop_obj', 'mall_x80_demand', 'wodu_ltadud', 'wodu_lta_pop_obj', 'wodu_lta_demand', 'wodu_x80_dud', 'wodu_x80_pop_obj', 'wodu_x80_demand', 'agwt_ltadud', 'agwt_lta_pop_obj', 'agwt_lta_demand', 'agwt_x80_dud', 'agwt_x80_pop_obj', 'agwt_x80_demand', 'amwi_ltadud', 'amwi_lta_pop_obj', 'amwi_lta_demand', 'amwi_x80_dud', 'amwi_x80_pop_obj', 'amwi_x80_demand', 'bwte_ltadud', 'bwte_lta_pop_obj', 'bwte_lta_demand', 'bwte_x80_dud', 'bwte_x80_pop_obj', 'bwte_x80_demand', 'gadw_ltadud', 'gadw_lta_pop_obj', 'gadw_lta_demand', 'gadw_x80_dud', 'gadw_x80_pop_obj', 'gadw_x80_demand', 'nopi_ltadud', 'nopi_lta_pop_obj', 'nopi_lta_demand', 'nopi_x80_dud', 'nopi_x80_pop_obj', 'nopi_x80_demand', 'nsho_ltadud', 'nsho_lta_pop_obj', 'nsho_lta_demand', 'nsho_x80_dud', 'nsho_x80_pop_obj', 'nsho_x80_demand', 'abdu_ltadud', 'abdu_lta_pop_obj', 'abdu_lta_demand', 'abdu_x80_dud', 'abdu_x80_pop_obj', 'abdu_x80_demand'])
-      arcpy.management.JoinField(webReady, 'huc12', habPct, 'huc12', ['HighSaltMarsh', 'LowSaltMarsh', 'FreshMarsh', 'ManagedFreshMarsh', 'ManagedFreshShallowOpenWater', 'FreshShallowOpenWater', 'FreshShores', 'MudflatSalt', 'SaltMarshNonDominant', 'DeepwaterFresh', 'Subtidal', 'FreshwaterWoody', 'FreshwaterAquaticBed', 'SaltwaterAquaticBed', 'SaltwaterWoody', 'Phragmites', 'ManagedFreshAquaticBed'])
+      arcpy.management.JoinField(webReady, self.binUnique[0], spEnergy, self.binUnique[0], ['mall_ltadud', 'mall_lta_pop_obj', 'mall_lta_demand', 'mall_x80_dud', 'mall_x80_pop_obj', 'mall_x80_demand', 'wodu_ltadud', 'wodu_lta_pop_obj', 'wodu_lta_demand', 'wodu_x80_dud', 'wodu_x80_pop_obj', 'wodu_x80_demand', 'agwt_ltadud', 'agwt_lta_pop_obj', 'agwt_lta_demand', 'agwt_x80_dud', 'agwt_x80_pop_obj', 'agwt_x80_demand', 'amwi_ltadud', 'amwi_lta_pop_obj', 'amwi_lta_demand', 'amwi_x80_dud', 'amwi_x80_pop_obj', 'amwi_x80_demand', 'bwte_ltadud', 'bwte_lta_pop_obj', 'bwte_lta_demand', 'bwte_x80_dud', 'bwte_x80_pop_obj', 'bwte_x80_demand', 'gadw_ltadud', 'gadw_lta_pop_obj', 'gadw_lta_demand', 'gadw_x80_dud', 'gadw_x80_pop_obj', 'gadw_x80_demand', 'nopi_ltadud', 'nopi_lta_pop_obj', 'nopi_lta_demand', 'nopi_x80_dud', 'nopi_x80_pop_obj', 'nopi_x80_demand', 'nsho_ltadud', 'nsho_lta_pop_obj', 'nsho_lta_demand', 'nsho_x80_dud', 'nsho_x80_pop_obj', 'nsho_x80_demand', 'abdu_ltadud', 'abdu_lta_pop_obj', 'abdu_lta_demand', 'abdu_x80_dud', 'abdu_x80_pop_obj', 'abdu_x80_demand'])
+      arcpy.management.JoinField(webReady, self.binUnique[0], habPct, self.binUnique[0], ['HighSaltMarsh', 'LowSaltMarsh', 'FreshMarsh', 'ManagedFreshMarsh', 'ManagedFreshShallowOpenWater', 'FreshShallowOpenWater', 'FreshShores', 'MudflatSalt', 'SaltMarshNonDominant', 'DeepwaterFresh', 'Subtidal', 'FreshwaterWoody', 'FreshwaterAquaticBed', 'SaltwaterAquaticBed', 'SaltwaterWoody', 'Phragmites', 'ManagedFreshAquaticBed'])
     
       # field field names
       webReadyFields = [f.name for f in arcpy.ListFields(webReady)]
@@ -552,7 +577,6 @@ class Waterfowlmodel:
 
     except Exception as e:
       print(e)
-      exit()
 
     for sp, spname in spDict.items():
       for fldname, fldlst in energDict.items():
@@ -563,13 +587,6 @@ class Waterfowlmodel:
       #print('{} will become {}'.format(fldname, fldlst[0]))
       arcpy.AlterField_management(webReady, fldname, fldlst[0], fldlst[1])
     
-    #for shp in [mainModel, spEnergy, habPct, webReady]:
-    #  #print('\n'+ shp)
-    #  #print([f.name for f in arcpy.ListFields(shp)])
-    #  if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_WebReady')):
-    #    arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_WebReady'))
-    #  arcpy.Copy_management(webReady, os.path.join(outputgdb, self.aoiname+'_WebReady'))
-    #  logging.info('\tWeb ready')
     return webReady
 
   def unionEnergy(self, supply, demand):
@@ -599,6 +616,8 @@ class Waterfowlmodel:
   def aggproportion(self, aggTo, aggData, IDField, aggFields, dissolveFields, scratch, cat,aggStat = 'SUM'):
     """
     Calculates proportional sum aggregate based on area within specified columns of a given dataset to features from another dataset.
+    Example: One aggData feature overlays two aggTo features (A abd B).  The one aggData feature has 100 kcal.  60% of the aggData feature is in
+    aggTo feature A and 40% in aggTo feature B.  This method will assign 6 0kcal to feature A and 40 kcal to feature B.
 
     :param aggTo: Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.
     :type aggTo: str
@@ -622,6 +641,11 @@ class Waterfowlmodel:
     # Script arguments
     try:
       print('\tProportional aggregation for ' + cat)
+      print(aggTo)
+      print(aggData)
+      print(IDField)
+      print(aggFields)
+      print(dissolveFields)
       FieldsToAgg = IDField + ' ' + IDField + ' VISIBLE NONE;'
       AggStats = ''
       for a in aggFields:
@@ -638,19 +662,13 @@ class Waterfowlmodel:
         print('\tAlready dissolved and calculated, Deleting', aggToOut)
         arcpy.Delete_management(aggToOut)
         #return aggToOut
-      #else:
-        #print('make feature')
-      print(aggData)
-      print(outLayer)
-      print(FieldsToAgg)
       arcpy.MakeFeatureLayer_management(in_features=aggData, out_layer=outLayer,field_info=FieldsToAgg)
-      #print('union')
-      print('outlayer', outLayer)
-      print('outlayerI', outLayerI)
+      print(aggTo)
+      print(outLayer)
       arcpy.Union_analysis(in_features=aggTo + ' #;' + outLayer, out_feature_class=outLayerI, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
-      print('dissolve')
-      print(Dissolve_Field_s_)
-      print(AggStats)
+      print('stats', AggStats)
+      print('dissolve', Dissolve_Field_s_)
+      print('indata', outLayerI)
       arcpy.Dissolve_management(in_features=outLayerI, out_feature_class=aggToOut, dissolve_field=Dissolve_Field_s_, statistics_fields=AggStats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.Delete_management(outLayerI)
     except Exception as e:
@@ -661,7 +679,8 @@ class Waterfowlmodel:
 
   def aggByField(self, mergeAll, scratch, demand, binme, cat):
     """
-    Aggregates energy demand on a smaller scale to multple larger scale features.  Example: County to HUC12.
+    Very similar to aggproportion but instead of using area to aggregate data this function uses avalNrgy.  This is largely used for proportioning energy demand based on
+    energy supply.
 
     :param mergeAll: Merged energy returned from self.prepnpptables.
     :type mergeAll: str
@@ -677,11 +696,11 @@ class Waterfowlmodel:
       outLayer = os.path.join(scratch, 'aggByField' + cat)
       #print('\toutlayer:', outLayer)
       #print('\tCalculating stats')
-      arcpy.Statistics_analysis(in_table=mergeAll, out_table=outLayer + 'hucfipsum', statistics_fields="avalNrgy SUM", case_field="huc12;fips")
+      arcpy.Statistics_analysis(in_table=mergeAll, out_table=outLayer + 'hucfipsum', statistics_fields="avalNrgy SUM", case_field=self.binUnique[0]+";fips")
       arcpy.Statistics_analysis(in_table=outLayer + 'hucfipsum', out_table=outLayer + 'fipsum', statistics_fields="SUM_avalNrgy SUM", case_field="fips")
       arcpy.AddField_management(outLayer + 'hucfipsum', "PropPCT", "DOUBLE", 9, "", "", "EnergyProportionPercent", "NULLABLE", "REQUIRED")
       arcpy.AddField_management(outLayer + 'hucfipsum', 'hucfip', "TEXT", 50)
-      arcpy.CalculateField_management(outLayer + 'hucfipsum', "hucfip", "!huc12!+ !fips!", "PYTHON3", '', "TEXT")
+      arcpy.CalculateField_management(outLayer + 'hucfipsum', "hucfip", "!"+self.binUnique[0]+"!+ !fips!", "PYTHON3", '', "TEXT")
       hucfip = arcpy.AddJoin_management(in_layer_or_view=outLayer + 'hucfipsum', in_field="fips", join_table=outLayer + 'fipsum', join_field="fips", join_type="KEEP_ALL")
       #print('\tjoined - printing field names')
       arcpy.CalculateField_management(in_table=hucfip, field="PropPCT", expression="(!aggByField" + cat + "hucfipsum.SUM_avalNrgy!/!aggByField" + cat + "fipsum.SUM_SUM_avalNrgy!)", expression_type="PYTHON_9.3", code_block="")
@@ -689,7 +708,7 @@ class Waterfowlmodel:
       unionme = ' #; '.join([demand, binme]) + ' #'
       arcpy.Union_analysis(in_features=unionme, out_feature_class=outLayer + 'unionhucfips', join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
       arcpy.AddField_management(outLayer + 'unionhucfips', 'hucfip', "TEXT", 50)
-      arcpy.CalculateField_management(in_table=outLayer + 'unionhucfips', field="hucfip", expression="!huc12!+ !fips!", expression_type="PYTHON_9.3", code_block="")
+      arcpy.CalculateField_management(in_table=outLayer + 'unionhucfips', field="hucfip", expression="!"+self.binUnique[0]+"!+ !fips!", expression_type="PYTHON_9.3", code_block="")
       unionhucfip = arcpy.AddJoin_management(in_layer_or_view=outLayer + 'unionhucfips', in_field="hucfip", join_table=outLayer + 'hucfipsum', join_field="hucfip", join_type="KEEP_ALL")
       arcpy.CalculateField_management(in_table=unionhucfip, field='LTADUD', expression="!aggByField" + cat + "unionhucfips.LTADUD! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=unionhucfip, field='LTAPopObj', expression="!aggByField" + cat + "unionhucfips.LTAPopObj! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
@@ -731,9 +750,6 @@ class Waterfowlmodel:
     :return: Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply
     :rtype:  str
     """
-    print(demand)
-    print(binIt)
-    print(binUnique)
     # Create a feature class with all the bin unique values
     spRef = arcpy.Describe(mergedAll).spatialReference
     Joined_demandbySpecies = os.path.join(scratch, 'demandbySpecies')
@@ -773,7 +789,6 @@ class Waterfowlmodel:
     #print(speciesList)
     for sp in speciesList:
       # filter demand layer to only this species...
-      print(sp)
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=demand, selection_type="NEW_SELECTION", where_clause="species = '{}'".format(sp))
       # if records for this species exist..
       if int(arcpy.management.GetCount(selectDemand)[0]) > 0:
@@ -796,8 +811,12 @@ class Waterfowlmodel:
         if sp == speciesList[0]:
             outdf = insp
         else:
-            insp.drop(['SHAPE', 'name'], axis=1, inplace=True)
-            outdf = outdf.join(insp.set_index('huc12'), on='huc12', how='left', rsuffix=sp)
+          try:
+            insp.drop(['SHAPE'], axis=1, inplace=True)
+            insp.drop(['name'], axis=1, inplace=True)
+          except:
+            pass
+          outdf = outdf.join(insp.set_index(self.binUnique[0]), on=self.binUnique[0], how='left', rsuffix=sp)
     if arcpy.Exists(os.path.join(scratch, 'DemandBySpecies')):
       arcpy.Delete_management(os.path.join(scratch, 'DemandBySpecies'))
     outdf.spatial.to_featureclass(os.path.join(scratch, 'DemandBySpecies'))
@@ -863,11 +882,9 @@ class Waterfowlmodel:
     nced = gpd.read_file(os.path.dirname(nced), layer=os.path.basename(nced), driver='FileGDB')
     #diff = pad.difference(nced).append(nced)
     diff = gpd.overlay(pad, nced, how='union')
-    print('before',type(diff))
     cc = diff.crs
     diff['CalcHA'] = diff.geometry.area/10000 #/10,000 for Hectares
     #diff = gpd.GeoDataFrame(diff, crs=cc)
-    print('after', type(diff))
     diff.to_file(output)
     return output
 
@@ -945,9 +962,9 @@ class Waterfowlmodel:
     :rtype: str 
     """    
     outLayer = os.path.join(scratch, 'MergeAll')
-    #print('\toutlayer:', outLayer)
+    print('\toutlayer:', outLayer)
     unionme = ' #; '.join([demand, binme, energy]) + ' #'
-    #print(unionme)
+    print(unionme)
     for fc in [demand, energy]:
        if len(arcpy.ListFields(fc,'name'))>0:
          arcpy.DeleteField_management(fc,["name"])
@@ -976,12 +993,10 @@ class Waterfowlmodel:
     dfmerge['pct'] = (dfmerge['CalcHA_x']/dfmerge['CalcHA_y'])*100
     outdf = dfmerge.pivot_table(index=binUnique, columns='CLASS', values='pct', aggfunc=np.sum)
     outdf = outdf.fillna(0)
-    print(outdf.head(3))
     try:
       outdf = outdf.drop(columns = ['', 'nan'])
     except:
       outdf = outdf.drop(columns = [''])
-    print(outdf.head())
     #print(outdf.sum(axis=1))
     badfields = []
     for field in self.kcalList:
@@ -997,7 +1012,6 @@ class Waterfowlmodel:
     outnp = np.array(np.rec.fromrecords(outdf))
     names = outdf.dtypes.index.tolist()
     outnp.dtype.names = tuple(names)
-    print(names)
     arcpy.env.overwriteOutput = True
     if arcpy.Exists(os.path.join(self.scratch, 'HabitatPct')):
       arcpy.Delete_management(os.path.join(self.scratch, 'HabitatPct'))
@@ -1006,7 +1020,7 @@ class Waterfowlmodel:
     for field in self.kcalList:
       if not len(arcpy.ListFields(os.path.join(self.scratch, 'HabitatProportion'),field))>0:
         arcpy.AddField_management(os.path.join(self.scratch, 'HabitatProportion'), field, "DOUBLE")
-    joinedhab = arcpy.AddJoin_management(in_layer_or_view=os.path.join(self.scratch, 'HabitatProportion'), in_field="HUC12", join_table=os.path.join(self.scratch, 'HabitatPct'), join_field="HUC12", join_type="KEEP_ALL")
+    joinedhab = arcpy.AddJoin_management(in_layer_or_view=os.path.join(self.scratch, 'HabitatProportion'), in_field=self.binUnique[0], join_table=os.path.join(self.scratch, 'HabitatPct'), join_field=self.binUnique[0], join_type="KEEP_ALL")
     print('\tCalculating sum of habitat hectares by bin')
     for field in self.kcalList:
       if not field in badfields:
