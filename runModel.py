@@ -96,7 +96,7 @@ def main(argv):
    parser.add_argument('--geodatabase', '-g', nargs=1, type=str, default='', help="Geodatabase that stores features")
    parser.add_argument('--wetland', '-l', nargs=2, type=str, default=[], help="Specify the name of the wetland layer and csv file separated by a comma")
    parser.add_argument('--padus', '-p', nargs=1, type=str, default=[], help="Specify the name of the PADUS layer")
-   parser.add_argument('--nced', '-n', nargs=1, type=str, default=[], help="Specify the name of the NCED layer")
+   parser.add_argument('--nced', '-n', nargs="*", type=str, default=[], help="Specify the name of the NCED layer if it exists")
    parser.add_argument('--kcalTable', '-k', nargs=1, type=str, default=[], help="Specify the name of the kcal energy table")
    parser.add_argument('--demand', '-d', nargs=1, type=str, default=[], help="Specify name of NAWCA stepdown layer")
    parser.add_argument('--extra', '-e', nargs="*", type=str, default=[], help="Extra habitat datasets in format: full path to dataset 1, full path to crosswalk 1, full path to dataset 2, full path to crosswalk")
@@ -137,8 +137,8 @@ def main(argv):
       sys.exit(2)
    nced = os.path.join(geodatabase,args.nced[0])
    if not arcpy.Exists(nced):
-      print("NCED layer doesn't exist.", nced)
-      sys.exit(2)
+      print("No NCED layer.  PADUS will be used as protected.", nced)
+      nced = None
    kcalTable = os.path.join(workspace,args.kcalTable[0])
    if not arcpy.Exists(kcalTable):
       print("kcalTable layer doesn't exist.")
@@ -215,7 +215,8 @@ def main(argv):
    demand = waterfowlmodel.dataset.Dataset(demand, scratchgdb)
    urban = waterfowlmodel.dataset.Dataset(urban, scratchgdb)
    padus = waterfowlmodel.dataset.Dataset(padus, scratchgdb)
-   nced = waterfowlmodel.dataset.Dataset(nced, scratchgdb)
+   if nced:
+      nced = waterfowlmodel.dataset.Dataset(nced, scratchgdb)
    
    print('\nModel Input parameters')
    print('#####################################')
@@ -226,7 +227,8 @@ def main(argv):
    printlog('\tWetland layer', wetland.inData)
    printlog('\tWetland crosswalk', wetland.crosswalk)
    printlog('\tPAD', padus.inData)
-   printlog('\tNCED', nced.inData)
+   if nced:
+      printlog('\tNCED', nced.inData)
    printlog('\tGeodatabase', geodatabase)
    printlog('\tEnergy Supply table', kcalTable)
    printlog('\tEnergy demand layer', demand.inData)
@@ -248,9 +250,9 @@ def main(argv):
    # Use aoi and aoifield to create list of unique elements.  Create list of waterfowlmodel init params for each unique aoi
    dstList = []
    unique_values = set(row[0] for row in arcpy.da.SearchCursor(aoi, aoifield))
-   #unique_values = {'WI'} # Overwriting the state selection here.
+   unique_values = {'four'} # Overwriting the state selection here.
    for oneAOI in unique_values:
-      scratchgdb = os.path.join(workspace, args.aoi[0], oneAOI + "_scratch.gdb")
+      scratchgdb = os.path.join(workspace, args.aoi[0], str(oneAOI) + "_scratch.gdb")
       if not (os.path.exists(scratchgdb)):
          print('Creating scratch geodatabase: ', scratchgdb)
          arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), oneAOI+'_scratch.gdb')      
@@ -300,7 +302,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
    if debug[0]: #Energy supply
       printlog('\n#### ENERGY SUPPLY for ', dstinfo[1])
       print('\tWetland crossclass')
-      dst.wetland = dst.supaCrossClass(dst.wetland, dst.crossTbl)
+      dst.wetland = dst.supaCrossClass(dst.wetland, dst.crossTbl, 'CLASS_ENG') ######### NEED TO MAKE PARAM
       for i in dst.extra.keys():
          dst.crossClass(dst.extra[i][0], dst.extra[i][1])
       print('\tJoin supply habitats')
@@ -317,9 +319,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
          arcpy.Delete_management(dst.mergedenergy + 'Selection')
       arcpy.CopyFeatures_management(allEnergy, dst.mergedenergy + 'Selection')
       dst.mergedenergy = dst.mergedenergy + 'Selection' 
-      print('before prep', dst.mergedenergy)
       dst.mergedenergy = dst.prepEnergyFast(dst.mergedenergy, dst.kcalTbl)
-      dst.mergedenergy = os.path.join(dst.scratch,'MergedEnergySelectionclean')
       coord_sys = arcpy.Describe(dst.wetland).spatialReference
       arcpy.DefineProjection_management(dst.mergedenergy, coord_sys)
       print('\tMerge supply Energy for ', dstinfo[1])
@@ -332,25 +332,28 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       if arcpy.Exists(os.path.join(dst.scratch, 'aggtosupplyenergy')):
          dst.energysupply = os.path.join(dst.scratch, 'aggtosupplyenergy')
       else:
-         print('Energy needs to be run')
+         print('Energy needs to be run.  no aggtosupplyenergy')
          sys.exit()
-      toSHP = os.path.join(os.path.dirname(os.path.dirname(dst.mergedenergy)), 'test'+dst.aoiname+'.shp')         
-      if arcpy.Exists(os.path.join(dst.scratch,'MergedEnergySelectionclean')):
-         dst.mergedenergy = os.path.join(dst.scratch,'MergedEnergySelectionclean')
+      #toSHP = os.path.join(os.path.dirname(os.path.dirname(dst.mergedenergy)), 'test'+dst.aoiname+'.shp')         
+      if arcpy.Exists(os.path.join(dst.scratch,'Wetland_projectedSelectionclean')):
+         dst.mergedenergy = os.path.join(dst.scratch,'Wetland_projectedSelectionclean')
       else:
-         print('Energy needs to be run')
+         print('Energy needs to be run. no mergedenergy')
          sys.exit()
 
    if debug[1]: #Energy demand
       printlog('\n#### ENERGY DEMAND for ', dstinfo[1])
-      print('\n # dst.demand', dst.demand)
+      print('\n dst.demand', dst.demand)
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
       print(arcpy.management.GetCount(selectDemand)[0])
       if arcpy.management.GetCount(selectDemand)[0] > "0":
          arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
          demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
          mergedAll, wtmarray = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
-         mergedAll = arcpy.SelectLayerByAttribute_management(in_layer_or_view=mergedAll, selection_type="NEW_SELECTION", where_clause=dst.binUnique[0]+ " <> ''")
+         #print(mergedAll)
+         #print(dst.binUnique[0]+ " <> ''")
+         if dst.binUnique[0] != 'OBJECTID':
+            mergedAll = arcpy.SelectLayerByAttribute_management(in_layer_or_view=mergedAll, selection_type="NEW_SELECTION", where_clause=dst.binUnique[0]+ " <> ''")
          dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
       elif arcpy.management.GetCount(selectDemand)[0] == "0":
          print('No records with "All" species. Not calculated')
@@ -362,13 +365,19 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       printlog('\n#### ENERGY DEMAND BY SPECIES for ', dstinfo[1])
       dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
       outSpecies = dst.energyBySpecies(dst.origDemand, dst.scratch, dst.binIt, os.path.join(dst.scratch, 'MergeAll'))
+
    if debug[3]: #Public lands
       printlog('\n#### PUBLIC LANDS for ', dstinfo[1])
-      nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
+      if nced:
+         nced = waterfowlmodel.publicland.PublicLand(dst.aoi, nced.inData, 'nced', dst.binIt, dst.scratch)
       padus = waterfowlmodel.publicland.PublicLand(dst.aoi, padus.inData, 'padus', dst.binIt, dst.scratch)
       print('\tPublic lands ready. Analyzing')
       #dst.prepProtected([nced.land, padus.land])
-      dst.protectedMerge = dst.pandasMerge(padus.land, nced.land, os.path.join(aoiworkspace, "Protected" + aoiname + ".shp"))
+      if nced:
+         dst.protectedMerge = dst.pandasMerge(padus.land, nced.land, os.path.join(aoiworkspace, "Protected" + aoiname + ".shp"))
+      else:
+         #dst.protectedMerge = padus.land
+         dst.protectedMerge = dst.gpdToGDB(padus.land, ['NAME_E'], 'padfix')
       protectedbin = dst.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "protectedbin")
       if not len(arcpy.ListFields(protectedbin,'ProtHA'))>0:
          if len(arcpy.ListFields(protectedbin,'SUM_CalcHA'))>0:

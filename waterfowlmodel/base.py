@@ -222,7 +222,7 @@ class Waterfowlmodel:
 
   def processExtra(self, extra):
     """
-    Process all extra energy datasets and returns a Dictionary.
+    Project and clip all extra energy datasets and returns a Dictionary.
 
     :param extra: Feature to project to Albers
     :type extra: list
@@ -332,6 +332,46 @@ class Waterfowlmodel:
     arcpy.Merge_management(erased, mergedenergy)
     return mergedenergy
 
+  def gpdToGDB(self, inDataset, fields, cat):
+    """
+    Writes geopandas dataframe to a geodatabase and adds calculated hectares field.
+
+    :param inDataset: geopandas dataframe
+    :type inDataset: str
+    :param fields: Fields required in end product
+    :type fields: str
+    :param cat: Category string for identification
+    :type cat: str    
+    :return: Modifed inDataset
+    :rtype: str
+    """    
+    if not len(arcpy.ListFields(inDataset,'CalcHA'))>0:
+      arcpy.AddField_management(inDataset, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
+    cleanMe = gpd.read_file(os.path.dirname(inDataset), layer=os.path.basename(inDataset), driver='FileGDB')
+    fields.append('CalcHA')
+    fields.append('geometry')
+    cleanMe = cleanMe[fields]
+    print(cleanMe.head())
+    cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
+    cleanMe = cleanMe.explode(ignore_index=True)
+    cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
+    try:
+      cleanMe = cleanMe.fillna('')
+    except:
+      pass
+    arcpy.CreateFeatureclass_management(os.path.dirname(inDataset), os.path.basename(inDataset)+cat,'POLYGON', inDataset)
+    fields.remove('geometry')
+    fields.append('SHAPE@')
+    print(fields)
+    spr = arcpy.Describe(inDataset).spatialReference
+    with arcpy.da.InsertCursor(inDataset+cat,fields) as cursor:
+      for index,row in cleanMe.iterrows():
+        tmp = cleanMe.loc[index]
+        cursor.insertRow((tmp[fields[0]], tmp['CalcHA'], arcpy.FromWKT(tmp.geometry.to_wkt(),spr)))
+    del cursor
+    inDataset = inDataset+cat
+    return inDataset
+
   def prepEnergyFast(self, inDataset, xTable):
     """
     Calculates habitat area and energy of the input dataset.  Utilizes geopandas which has been much faster than arcpy.  Not without issues (Larger than 2GB shapefile).
@@ -352,15 +392,10 @@ class Waterfowlmodel:
       arcpy.AddField_management(inDataset, 'kcal', "LONG")
     if not len(arcpy.ListFields(inDataset,'CalcHA'))>0:
       arcpy.AddField_management(inDataset, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
-    toSHP = os.path.join(os.path.dirname(os.path.dirname(inDataset)), 'test'+self.aoiname+'.shp')
-    #FAILING to write entire dataset... soemtimes #arcpy.FeatureClassToFeatureClass_conversion(inDataset, os.path.dirname(toSHP), 'test'+self.aoiname+'.shp')   
+    #toSHP = os.path.join(os.path.dirname(os.path.dirname(inDataset)), 'test'+self.aoiname+'.shp')
     cleanMe = gpd.read_file(os.path.dirname(inDataset), layer=os.path.basename(inDataset), driver='FileGDB')
-    #cleanMe = gpd.read_file(toSHP, driver='shapefile')
-    #print(cleanMe)
     cleanMe = cleanMe[['kcal', 'CLASS', 'avalNrgy', 'CalcHA','geometry']]
     cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
-    #cleanMe = cleanMe.simplify(5)
-    #cleanMe = cleanMe[~cleanMe['CLASS'].is_empty]
     cleanMe = cleanMe[~cleanMe['CLASS'].isnull()]
     cleanMe = cleanMe.explode(ignore_index=True)
     cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
@@ -370,7 +405,6 @@ class Waterfowlmodel:
       pass
     cleanMe['kcal'] = 0
     cleanMe['avalNrgy'] = 0
-    #cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'testCleaned'+self.aoiname+'.shp'))
     arcpy.CreateFeatureclass_management(os.path.dirname(inDataset), os.path.basename(inDataset)+"clean",'POLYGON', inDataset)
     spr = arcpy.Describe(inDataset).spatialReference
     with arcpy.da.InsertCursor(inDataset+"clean",['kcal', 'CLASS', 'avalNrgy', 'CalcHA', 'SHAPE@']) as cursor:
@@ -378,8 +412,6 @@ class Waterfowlmodel:
         tmp = cleanMe.loc[index]
         cursor.insertRow((0, tmp['CLASS'],0, tmp['CalcHA'], arcpy.FromWKT(tmp.geometry.to_wkt(),spr)))
     del cursor
-    #cleanMe.to_file(os.path.join())
-    #inDataset = os.path.join(os.path.dirname(toSHP), 'testCleaned'+self.aoiname+'.shp')
     inDataset = inDataset+"clean"
     # Read data from file:
     print('\tReading in habitat file')
@@ -692,19 +724,18 @@ class Waterfowlmodel:
     :rtype:  str
     """
     try:
-      #print('\tProportioning energy demand based on energy supply.')
+      print('\tProportioning energy demand based on energy supply.')
       outLayer = os.path.join(scratch, 'aggByField' + cat)
-      #print('\toutlayer:', outLayer)
-      #print('\tCalculating stats')
       arcpy.Statistics_analysis(in_table=mergeAll, out_table=outLayer + 'hucfipsum', statistics_fields="avalNrgy SUM", case_field=self.binUnique[0]+";fips")
       arcpy.Statistics_analysis(in_table=outLayer + 'hucfipsum', out_table=outLayer + 'fipsum', statistics_fields="SUM_avalNrgy SUM", case_field="fips")
       arcpy.AddField_management(outLayer + 'hucfipsum', "PropPCT", "DOUBLE", 9, "", "", "EnergyProportionPercent", "NULLABLE", "REQUIRED")
       arcpy.AddField_management(outLayer + 'hucfipsum', 'hucfip', "TEXT", 50)
+      print("!"+self.binUnique[0]+"!+ !fips!")
       arcpy.CalculateField_management(outLayer + 'hucfipsum', "hucfip", "!"+self.binUnique[0]+"!+ !fips!", "PYTHON3", '', "TEXT")
       hucfip = arcpy.AddJoin_management(in_layer_or_view=outLayer + 'hucfipsum', in_field="fips", join_table=outLayer + 'fipsum', join_field="fips", join_type="KEEP_ALL")
-      #print('\tjoined - printing field names')
+      print('\tjoined - printing field names')
       arcpy.CalculateField_management(in_table=hucfip, field="PropPCT", expression="(!aggByField" + cat + "hucfipsum.SUM_avalNrgy!/!aggByField" + cat + "fipsum.SUM_SUM_avalNrgy!)", expression_type="PYTHON_9.3", code_block="")
-      #print('\tUnion huc and fips and calculate demand')
+      print('\tUnion huc and fips and calculate demand')
       unionme = ' #; '.join([demand, binme]) + ' #'
       arcpy.Union_analysis(in_features=unionme, out_feature_class=outLayer + 'unionhucfips', join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
       arcpy.AddField_management(outLayer + 'unionhucfips', 'hucfip', "TEXT", 50)
@@ -715,9 +746,7 @@ class Waterfowlmodel:
       arcpy.CalculateField_management(in_table=unionhucfip, field='LTADemand', expression="!aggByField" + cat + "unionhucfips.LTADemand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80DUD', expression="!aggByField" + cat + "unionhucfips.X80DUD! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.CalculateField_management(in_table=unionhucfip, field='X80PopObj', expression="!aggByField" + cat + "unionhucfips.X80PopObj! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
-      arcpy.CalculateField_management(in_table=unionhucfip, field='X80Demand', expression="!aggByField" + cat + "unionhucfips.X80Demand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")      
-      #print('\tDissolve and alter field names')
-      #print(self.binUnique)
+      arcpy.CalculateField_management(in_table=unionhucfip, field='X80Demand', expression="!aggByField" + cat + "unionhucfips.X80Demand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
       arcpy.Dissolve_management(in_features=outLayer + 'unionhucfips', out_feature_class=outLayer+'dissolveHUC', dissolve_field=self.binUnique, statistics_fields="LTADUD SUM;LTAPopObj SUM;LTADemand SUM;X80DUD SUM;X80PopObj SUM;X80Demand SUM", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTADUD', 'LTADUD', 'Long term average Duck use days')
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTAPopObj', 'LTAPopObj', 'Long term average Population objective')
@@ -757,10 +786,8 @@ class Waterfowlmodel:
     for uni in binUnique:
       arcpy.AddField_management(Joined_demandbySpecies, uni, "TEXT")
     arcpy.Append_management(binIt, Joined_demandbySpecies, "NO_TEST")
-
     # read in csv that contains the crosswalk for all the field names
     fieldtable = pd.read_csv(fieldtable, encoding='unicode_escape')
-
     # species list
     fieldtable["species"]=fieldtable["species"].apply(str)
     speciesList = [f.upper() for f in fieldtable.species.unique() if f.upper()!='ALL']
@@ -797,8 +824,6 @@ class Waterfowlmodel:
         arcpy.CopyFeatures_management(selectDemand, os.path.join(scratch, demandSelected))
         #print("\tAggregating energy demand on a smaller scale to multiple larger scale features for each species.  Example: County to HUC12.")
         demandbySpecies = self.aggByField(mergedAll, scratch, demandSelected, binIt, sp)
-        #print(demandbySpecies)
-        #print("Records in aggbyfield output", int(arcpy.GetCount_management(demandbySpecies)[0]))
         insp = pd.DataFrame.spatial.from_featureclass(demandbySpecies)
         for col in insp.columns[3:-1]:
             insp.rename(columns={col: sp+'_'+col}, inplace = True)
@@ -841,7 +866,7 @@ class Waterfowlmodel:
 
   def prepProtected(self, protlist):
     """
-    Prepares protected lands by merging protected features in the passed list.
+    Prepares protected lands by merging protected features in the passed list.  This needs to be updated to use GDB instead of shapefile.
 
     :param protlist: Protected feature classes
     :type protlist: list
@@ -851,11 +876,9 @@ class Waterfowlmodel:
       arcpy.management.Dissolve(os.path.join(self.scratch, 'protunion'), self.protectedMerge, None, None, "MULTI_PART", "DISSOLVE_LINES")
     if not len(arcpy.ListFields(self.protectedMerge,'CalcHA'))>0:
         arcpy.AddField_management(self.protectedMerge, 'CalcHA', "DOUBLE", 9, 2, "", "GIS Hectares") 
-    #arcpy.CalculateGeometryAttributes_management(self.protectedMerge, "CalcHA AREA", area_unit="HECTARES")
     toSHP = os.path.join(os.path.dirname(os.path.dirname(self.protectedMerge)), 'protmerge'+self.aoiname+'.shp')
     arcpy.FeatureClassToFeatureClass_conversion(self.protectedMerge, os.path.dirname(toSHP), 'protmerge'+self.aoiname+'.shp')   
     cleanMe = gpd.read_file(toSHP, driver='shapefile')
-    #print(cleanMe)
     cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
     cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
     try:
@@ -900,10 +923,6 @@ class Waterfowlmodel:
     :return output: Location of output
     :rtype output: str    
     """
-    #pad = gpd.read_file(r'D:\GIS\scratch\dst\SouthAtlantic\SouthAtlantic_scratch.gdb', layer='padusaoi')
-    #nced = gpd.read_file(r'D:\GIS\scratch\dst\SouthAtlantic\SouthAtlantic_scratch.gdb', layer='ncedaoi')
-    #diff = pad.difference(nced).append(nced.geometry)
-    #diff.to_file("d:\\gis\\scratch\\pandasmergeBIG.shp")
     diffs = []
     gdfs = []
     for i in toMerge:
@@ -972,11 +991,6 @@ class Waterfowlmodel:
       arcpy.Delete_management(outLayer)
     print('\tRun union')
     arcpy.Union_analysis(in_features=unionme, out_feature_class=outLayer, join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
-    #if arcpy.Exists(os.path.join(os.path.dirname(self.scratch),'tbl.csv')):
-    #  arcpy.Delete_management(os.path.join(os.path.dirname(self.scratch),'tbl.csv'))
-    #arcpy.TableToTable_conversion(in_rows=outLayer, out_path=os.path.dirname(self.scratch), out_name="tbl.csv", where_clause="", field_mapping='avalNrgy "AvailableEnergy" true true false 8 Double 0 0 ,First,#,'+outLayer+',avalNrgy,-1,-1;CLASS "CLASS" true true false 255 Text 0 0 ,First,#,'+outLayer+',CLASS,-1,-1;CalcHA "Hectares" true true false 8 Double 0 0 ,First,#,'+outLayer+',CalcHA,-1,-1;kcal "kcal" true true false 4 Long 0 0 ,First,#,'+outLayer+',kcal,-1,-1;HUC12 "HUC12" true true false 12 Text 0 0 ,First,#,'+outLayer+',HUC12,-1,-1;Shape_Length "Shape_Length" false true true 8 Double 0 0 ,First,#,'+outLayer+',Shape_Length,-1,-1;Shape_Area "Shape_Area" false true true 8 Double 0 0 ,First,#,'+outLayer+',Shape_Area,-1,-1', config_keyword="")
-    #arcpy.TableToTable_conversion(in_rows=outLayer, out_path=os.path.dirname(self.scratch), out_name="tbl.csv")
-    #print('\tunioned')
     wtmarray = arcpy.da.FeatureClassToNumPyArray(outLayer, ['avalNrgy','CLASS', 'CalcHA', self.binUnique[0], self.binUnique[1], 'kcal'], null_value=0)
     return outLayer, wtmarray
 
@@ -985,7 +999,6 @@ class Waterfowlmodel:
     Calculates proportion of habitat type by bin feature.
     """
     print('\tConverting to pandas')
-    #df = pd.read_csv(os.path.join(os.path.dirname(self.scratch),'tbl.csv'), usecols=['avalNrgy','CLASS', 'CalcHA', binUnique, 'kcal'], dtype={'avalNrgy': np.float, 'CLASS':np.string_,'CalcHA':np.float, binUnique:np.string_})
     df = pd.DataFrame(wtmarray)
     df = df.dropna(subset=['CLASS', binUnique, 'kcal'])
     df1 = df.groupby([binUnique]).CalcHA.sum()
