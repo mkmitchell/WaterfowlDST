@@ -486,7 +486,7 @@ class Waterfowlmodel:
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBintemp'))
     arcpy.Merge_management(mergebin, os.path.join(self.scratch, 'AllDataBintemp'))
     print('\tDissolving features and fixing fields')
-    fields = self.binUnique[1] +" MAX; BinHA SUM; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal MEAN;"
+    fields = self.binUnique[1] +" MAX; BinHA MAX; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal MEAN;"
     if arcpy.Exists(os.path.join(self.scratch, 'AllDataBin')):
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBin'))
     #print(fields)
@@ -510,7 +510,7 @@ class Waterfowlmodel:
     #print([f.name for f in arcpy.ListFields(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))])
     arcpy.Dissolve_management(in_features=os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'), out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_'+ self.binUnique[1], self.binUnique[0] + 'name', self.binUnique[0] + ' Name')
-    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_BinHA', self.binUnique[0]+ '_ha', self.binUnique[0] +' Hectares')
+    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_BinHA', self.binUnique[0]+ '_ha', self.binUnique[0] +' Hectares')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_UrbanHA', 'UrbanHA', 'Urban Hectares')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_THabNrg', 'tothabitat_kcal', 'Total Habitat Energy (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_THabHA', 'tothabitat_ha', 'Total Habitat Hectares')
@@ -536,10 +536,14 @@ class Waterfowlmodel:
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'restoregoal_80th_ha', "DOUBLE", 9, 2, "", "80th Percentile Restoration Objective (ha)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='restoregoal_lta_ha', expression="abs(!surpdef_lta_kcal!/!wtMean_kcal_per_ha!) if !surpdef_lta_kcal! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='restoregoal_80th_ha', expression="abs(!surpdef_80th_kcal!/!wtMean_kcal_per_ha!) if !surpdef_80th_kcal! < 0 else 0", expression_type="PYTHON_9.3", code_block="")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='restoregoal_lta_ha', expression="!available_ha! if !restoregoal_lta_ha! > !available_ha! else !restoregoal_lta_ha!", expression_type="PYTHON_9.3", code_block="")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='restoregoal_80th_ha', expression="!available_ha! if !restoregoal_80th_ha! > !available_ha! else !restoregoal_80th_ha!", expression_type="PYTHON_9.3", code_block="")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'protectgoal_lta_ha', "DOUBLE", 9, 2, "", "Long-Term Average Protection Objective (ha)")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'protectgoal_80th_ha', "DOUBLE", 9, 2, "", "80th Percentile Protection Objective (ha)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='protectgoal_lta_ha', expression="(!nrgprot_lta_kcal!/!wtMean_kcal_per_ha!) if !nrgprot_lta_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
-    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='protectgoal_80th_ha', expression="(!nrgprot_80th_kcal!/!wtMean_kcal_per_ha!) if !nrgprot_80th_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")    
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='protectgoal_80th_ha', expression="(!nrgprot_80th_kcal!/!wtMean_kcal_per_ha!) if !nrgprot_80th_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='protectgoal_lta_ha', expression="!available_ha! if !protectgoal_lta_ha! > !available_ha! else !protectgoal_lta_ha!", expression_type="PYTHON_9.3", code_block="")    
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='protectgoal_80th_ha', expression="!available_ha! if !protectgoal_80th_ha! > !available_ha! else !protectgoal_80th_ha!", expression_type="PYTHON_9.3", code_block="")    
     arcpy.FeatureClassToFeatureClass_conversion(os.path.join(self.scratch, 'AllDataBin'),self.scratch,self.aoiname+'_Output',self.binUnique[0] + " <> ''")
     if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_Output')):
       arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_Output'))
