@@ -48,7 +48,7 @@ def main(argv):
    :type workspace: str
    :param geodatabase: Geodatabase with features.
    :type geodatabase: str
-   :param wetland: National Wetlands Inventory shapefile and csv file separated by a comma
+   :param wetland: National Wetlands Inventory shapefile, csv file, and class column name separated by a commas
    :type wetland: str
    :param padus: Protected Area Dataset - US
    :type padus: str
@@ -94,7 +94,7 @@ def main(argv):
    parser=argparse.ArgumentParser(prog=argv)
    parser.add_argument('--workspace', '-w', nargs=1, type=str, default='', help="Workspace where geodatabase and csvs are stored")
    parser.add_argument('--geodatabase', '-g', nargs=1, type=str, default='', help="Geodatabase that stores features")
-   parser.add_argument('--wetland', '-l', nargs=2, type=str, default=[], help="Specify the name of the wetland layer and csv file separated by a comma")
+   parser.add_argument('--wetland', '-l', nargs=3, type=str, default=[], help="Specify the name of the wetland layer,csv file, and class column name separated by a commas")
    parser.add_argument('--padus', '-p', nargs=1, type=str, default=[], help="Specify the name of the PADUS layer")
    parser.add_argument('--nced', '-n', nargs="*", type=str, default=[], help="Specify the name of the NCED layer if it exists")
    parser.add_argument('--kcalTable', '-k', nargs=1, type=str, default=[], help="Specify the name of the kcal energy table")
@@ -125,12 +125,16 @@ def main(argv):
       sys.exit(2)             
    wetland = os.path.join(geodatabase,args.wetland[0])
    wetlandX = os.path.join(workspace,args.wetland[1])
+   wetlandCol = args.wetland[2]
    if not arcpy.Exists(wetland):
       print("Wetland layer doesn't exist.", wetland)
       sys.exit(2)
    if not arcpy.Exists(wetlandX):
       print("Wetland crosswalk doesn't exist.")
       sys.exit(2)
+   if not len(arcpy.ListFields(wetland,wetlandCol))>0:
+      print('Wetland class column not within wetland dataset.')
+      sys.exit(2)    
    padus = os.path.join(geodatabase,args.padus[0])
    if not arcpy.Exists(padus):
       print("PADUS layer doesn't exist.", padus)
@@ -211,7 +215,7 @@ def main(argv):
    comparetime = datetime.datetime.now()
    logging.basicConfig(filename=os.path.join(workspace,"Waterfowl_" + aoiname + "_" + datetime.datetime.now().strftime("%m_%d_%Y")+ ".log"), filemode='w', level=logging.INFO)
    install_mp_handler()             
-   wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX)
+   wetland = waterfowlmodel.dataset.Dataset(wetland, scratchgdb, wetlandX, wetlandCol)
    demand = waterfowlmodel.dataset.Dataset(demand, scratchgdb)
    urban = waterfowlmodel.dataset.Dataset(urban, scratchgdb)
    padus = waterfowlmodel.dataset.Dataset(padus, scratchgdb)
@@ -226,6 +230,7 @@ def main(argv):
    printlog('\tDate', datetime.datetime.now().strftime("%m_%d_%Y"))
    printlog('\tWetland layer', wetland.inData)
    printlog('\tWetland crosswalk', wetland.crosswalk)
+   printlog('\tWetland crosswalk', wetland.classAttr)
    printlog('\tPAD', padus.inData)
    if nced:
       printlog('\tNCED', nced.inData)
@@ -250,7 +255,7 @@ def main(argv):
    # Use aoi and aoifield to create list of unique elements.  Create list of waterfowlmodel init params for each unique aoi
    dstList = []
    unique_values = set(row[0] for row in arcpy.da.SearchCursor(aoi, aoifield))
-   unique_values = {'four'} # Overwriting the state selection here.
+   unique_values = {'NY'} # Overwriting the state selection here.
    for oneAOI in unique_values:
       scratchgdb = os.path.join(workspace, args.aoi[0], str(oneAOI) + "_scratch.gdb")
       if not (os.path.exists(scratchgdb)):
@@ -258,7 +263,7 @@ def main(argv):
          arcpy.CreateFileGDB_management(os.path.join(workspace,args.aoi[0]), oneAOI+'_scratch.gdb')      
       uniqueAOI = arcpy.SelectLayerByAttribute_management(in_layer_or_view=aoi, selection_type="NEW_SELECTION", where_clause=aoifield + " = '" +oneAOI+"'")
       arcpy.CopyFeatures_management(uniqueAOI, os.path.join(workspace, args.aoi[0], oneAOI + "_scratch.gdb", 'stateAOI'))
-      dstList.append([os.path.join(workspace, args.aoi[0], oneAOI + "_scratch.gdb", 'stateAOI'), oneAOI, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, urban.inData, binIt, binUnique, extra, fieldTable, scratchgdb])
+      dstList.append([os.path.join(workspace, args.aoi[0], oneAOI + "_scratch.gdb", 'stateAOI'), oneAOI, wetland.inData, kcalTable, wetland.crosswalk, demand.inData, urban.inData, binIt, binUnique, extra, fieldTable, scratchgdb, wetland.classAttr])
 
    # Setup pool and map
    print("Creating pool")
@@ -291,18 +296,17 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
    startT = time.perf_counter()
    print('\n#### Create waterfowl object for ', dstinfo[1])   
    aoiname = dstinfo[1]
-   dst = waterfowl.Waterfowlmodel(dstinfo[0], dstinfo[1],dstinfo[2],dstinfo[3],dstinfo[4],dstinfo[5],dstinfo[6],dstinfo[7],dstinfo[8],dstinfo[9],dstinfo[10], dstinfo[11])
+   dst = waterfowl.Waterfowlmodel(dstinfo[0], dstinfo[1],dstinfo[2],dstinfo[3],dstinfo[4],dstinfo[5],dstinfo[6],dstinfo[7],dstinfo[8],dstinfo[9],dstinfo[10], dstinfo[11], dstinfo[12])
    print('#####################################')   
    printlog('\tRegion of interest', dst.aoiname)
    printlog('\tScratch gdb', dst.scratch)
    printlog('\tOutput gdb', outputgdb)
    print('#####################################')   
    logging.info('Wetland layer '.join(map(str, list(dst.__dict__))))
-   
    if debug[0]: #Energy supply
       printlog('\n#### ENERGY SUPPLY for ', dstinfo[1])
       print('\tWetland crossclass')
-      dst.wetland = dst.supaCrossClass(dst.wetland, dst.crossTbl, 'CLASS_ENG') ######### NEED TO MAKE PARAM
+      dst.wetland = dst.supaCrossClass(dst.wetland, dst.crossTbl, dst.classAttr) ######### NEED TO MAKE PARAM
       for i in dst.extra.keys():
          dst.crossClass(dst.extra[i][0], dst.extra[i][1])
       print('\tJoin supply habitats')
@@ -345,13 +349,10 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       printlog('\n#### ENERGY DEMAND for ', dstinfo[1])
       print('\n dst.demand', dst.demand)
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
-      print(arcpy.management.GetCount(selectDemand)[0])
       if arcpy.management.GetCount(selectDemand)[0] > "0":
          arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
          demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
          mergedAll, wtmarray = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
-         #print(mergedAll)
-         #print(dst.binUnique[0]+ " <> ''")
          if dst.binUnique[0] != 'OBJECTID':
             mergedAll = arcpy.SelectLayerByAttribute_management(in_layer_or_view=mergedAll, selection_type="NEW_SELECTION", where_clause=dst.binUnique[0]+ " <> ''")
          dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
@@ -399,7 +400,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
             arcpy.AlterField_management(dst.protectedEnergy, 'avalNrgy', 'ProtHabNrg', 'ProtectedHabitatEnergy')
    else:
       dst.protectedEnergy = os.path.join(dst.scratch, 'aggtoprotectedEnergy')
-      dst.protectedMerge = os.path.join(aoiworkspace, "Protected" + aoiname + ".shp")
+      dst.protectedMerge = os.path.join(dst.scratch, 'padusaoipadfix')
    
    if debug[4]: #Habitat proportions
       printlog('\n#### HABITAT PERCENTAGE for ', dstinfo[1])
@@ -471,6 +472,14 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       print('mergedenergy', dst.mergedenergy)
       print('demand selected', demandSelected)
       print('protected', dst.protectedMerge)
+      if arcpy.Exists(os.path.join(dst.scratch, 'outputStats')):
+         arcpy.Delete_management(os.path.join(dst.scratch, 'outputStats'))
+      if arcpy.Exists(os.path.join(dst.scratch, 'mergedEnergyStats')):
+         arcpy.Delete_management(os.path.join(dst.scratch, 'mergedEnergyStats'))
+      if arcpy.Exists(os.path.join(dst.scratch, 'demandStats')):
+         arcpy.Delete_management(os.path.join(dst.scratch, 'demandStats'))            
+      if arcpy.Exists(os.path.join(dst.scratch, 'protStats')):
+         arcpy.Delete_management(os.path.join(dst.scratch, 'protStats'))                  
       arcpy.Statistics_analysis(in_table=outData, out_table=os.path.join(dst.scratch, 'outputStats'), statistics_fields="tothabitat_kcal SUM; demand_lta_kcal SUM; dud_lta SUM; protected_ha SUM")
       arcpy.Statistics_analysis(in_table=dst.mergedenergy, out_table=os.path.join(dst.scratch, 'mergedEnergyStats'), statistics_fields="avalNrgy SUM")
       arcpy.Statistics_analysis(in_table=demandSelected, out_table=os.path.join(dst.scratch, 'demandStats'), statistics_fields="LTADemand SUM; LTADUD SUM")
@@ -480,7 +489,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       indemandstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'demandStats'), ['SUM_LTADemand', 'SUM_LTADUD'])
       inprotstats = arcpy.da.TableToNumPyArray(os.path.join(dst.scratch, 'protStats'), ['SUM_CalcHA'])
       with open(os.path.join(os.path.dirname(dst.scratch),dstinfo[1]+'_OutputCheck.txt'), 'w') as f:
-         f.write('\nOutput energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
+         f.write('\nOutput energy : {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
          f.write('tEnergy difference %: {}'.format(int((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100)))
          f.write('\nOutput demand: {}\nInput demand: {}'.format(outputStats[0][1], indemandstats[0][0]))
          f.write('\tDemand  difference %: {}'.format(int((outputStats[0][1] - indemandstats[0][0])/(outputStats[0][1] + indemandstats[0][0])*100)))
@@ -488,6 +497,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
          f.write('\tDUD  difference %: {}'.format(int((outputStats[0][2] - indemandstats[0][1])/(outputStats[0][2] + indemandstats[0][1])*100)))
          f.write('\nOutput Protection HA: {}\nInput HA: {}'.format(outputStats[0][3], inprotstats[0][0]))
          f.write('\tProtection  difference %: {}'.format(int((outputStats[0][3] - inprotstats[0][0])/(outputStats[0][3] + inprotstats[0][0])*100)))
+      print('Stats  for ', dstinfo[1])
       print('\nOutput energy: {}\nInput energy: {}'.format(outputStats[0][0], inenergystats[0][0]))
       print('\tEnergy difference %: {}'.format(int((outputStats[0][0] - inenergystats[0][0])/(outputStats[0][0] + inenergystats[0][0])*100)))
       print('\nOutput demand: {}\nInput demand: {}'.format(outputStats[0][1], indemandstats[0][0]))

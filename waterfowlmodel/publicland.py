@@ -72,8 +72,14 @@ class PublicLand:
       logging.info('Already have {} clipped with aoi'.format(cat))
     else:
       print('\tClipping:', inFeature)
-      logging.info("Clipping features")
-      arcpy.Clip_analysis(inFeature, self.aoi, outfc)
+      try:
+        logging.info("Clipping features")
+        arcpy.Clip_analysis(inFeature, self.aoi, outfc)
+      except:
+        print('Bad topology. Repairing')
+        arcpy.RepairGeometry_management(inFeature)
+        arcpy.RepairGeometry_management(self.aoi)
+        arcpy.Clip_analysis(inFeature, self.aoi, outfc)
     return outfc  
 
   def bin(self, aggData, bins, cat):

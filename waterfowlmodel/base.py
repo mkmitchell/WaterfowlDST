@@ -91,7 +91,7 @@ def calculateStandardizedABDU(WebReady, binUnique):
 
 class Waterfowlmodel:
   """Stores waterfowl model parameters and methods."""
-  def __init__(self, aoi, aoiname, wetland, kcalTable, crosswalk, demand, urban, binIt, binUnique, extra, fieldtable, scratch):
+  def __init__(self, aoi, aoiname, wetland, kcalTable, crosswalk, demand, urban, binIt, binUnique, extra, fieldtable, scratch, classAttr):
     """
     Creates a waterfowl model object.
     
@@ -126,6 +126,7 @@ class Waterfowlmodel:
     self.binIt = self.projAlbers(self.clipStuff(binIt, 'bin'), 'Bin')
     self.binUnique = binUnique
     self.wetland = self.projAlbers(self.clipStuff(wetland, 'wetland'), 'Wetland')
+    self.classAttr = classAttr
     self.kcalTbl = kcalTable
     self.kcalList = self.getHabList()
     self.crossTbl = crosswalk

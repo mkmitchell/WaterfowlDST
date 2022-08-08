@@ -19,8 +19,9 @@ class Dataset:
   :param crosswalk: CSV file relating input habitat types to ABDU habitat types
   :type crosswalk: str
   """
-  def __init__(self, inData, scratch, crosswalk = None):
+  def __init__(self, inData, scratch, crosswalk = None, classAttr = None):
     self.inData = inData
     self.crosswalk = crosswalk
     self.scratch = scratch
+    self.classAttr = classAttr
     env.workspace = scratch
