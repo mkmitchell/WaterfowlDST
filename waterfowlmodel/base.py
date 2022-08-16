@@ -8,6 +8,7 @@ import os, sys, getopt, datetime, logging, arcpy, json, csv, re, time
 from functools import wraps
 from arcpy import env
 from arcpy.arcobjects.arcobjects import SpatialReference
+import bleach
 import pandas as pd
 import numpy as np
 from arcgis.features import FeatureLayer, GeoAccessor, GeoSeriesAccessor
@@ -123,8 +124,8 @@ class Waterfowlmodel:
     self.scratch = scratch
     self.aoi = self.projAlbers(aoi, 'AOI')
     self.aoiname = aoiname
-    self.binIt = self.projAlbers(self.clipStuff(binIt, 'bin'), 'Bin')
     self.binUnique = binUnique
+    self.binIt = self.projAlbers(self.clipStuff(binIt, 'bin'), 'Bin')
     self.wetland = self.projAlbers(self.clipStuff(wetland, 'wetland'), 'Wetland')
     self.classAttr = classAttr
     self.kcalTbl = kcalTable
@@ -208,6 +209,9 @@ class Waterfowlmodel:
         inFeature = outfc + 'tLayer'
       # Replace a layer/table view name with a path to a dataset (which can be a layer file) or create the layer/table view within the script
       # The following inputs are layers or table views: "EnergyDemand"
+      #if cat == 'bin':
+      #  arcpy.MakeFeatureLayer_management(in_features=inFeature, out_layer=outfc + 'bLayer', where_clause="", workspace="", field_info=self.binUnique[0] + " " + self.binUnique[0] + "VISIBLE NONE;"+ self.binUnique[1] + " " + self.binUnique[1] + "VISIBLE NONE")
+      #  inFeature = outfc + 'bLayer'
       arcpy.Clip_analysis(inFeature, self.aoi, outfc)
     return outfc
 
@@ -333,29 +337,31 @@ class Waterfowlmodel:
     arcpy.Merge_management(erased, mergedenergy)
     return mergedenergy
 
-  def gpdToGDB(self, inDataset, fields, cat):
+  def gpdToGDB(self, inDataset, fields, areafield, cat):
     """
     Writes geopandas dataframe to a geodatabase and adds calculated hectares field.
 
-    :param inDataset: geopandas dataframe
-    :type inDataset: str
+    :param inDataset: Feature class to convert
+    :type inDataset: str    
     :param fields: Fields required in end product
     :type fields: str
+    :param areafield: Field for area calculation
+    :type fields: str    
     :param cat: Category string for identification
     :type cat: str    
     :return: Modifed inDataset
     :rtype: str
     """    
-    if not len(arcpy.ListFields(inDataset,'CalcHA'))>0:
-      arcpy.AddField_management(inDataset, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
     cleanMe = gpd.read_file(os.path.dirname(inDataset), layer=os.path.basename(inDataset), driver='FileGDB')
-    fields.append('CalcHA')
-    fields.append('geometry')
+    if 'geometry' not in fields:
+      fields.append('geometry')
+    if areafield not in fields:
+      fields.append(areafield)
     cleanMe = cleanMe[fields]
-    print(cleanMe.head())
-    cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
-    cleanMe = cleanMe.explode(ignore_index=True)
-    cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
+    #cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
+    if cat == 'padfix':
+      cleanMe = cleanMe.explode(ignore_index=True)
+    cleanMe[areafield] = cleanMe.geometry.area/10000 #/10,000 for Hectares
     try:
       cleanMe = cleanMe.fillna('')
     except:
@@ -363,12 +369,25 @@ class Waterfowlmodel:
     arcpy.CreateFeatureclass_management(os.path.dirname(inDataset), os.path.basename(inDataset)+cat,'POLYGON', inDataset)
     fields.remove('geometry')
     fields.append('SHAPE@')
-    print(fields)
+    #print(len(fields))
+    #print(cleanMe.columns)
+    try:
+      for i in ['UrbanHA', 'THabNrg', 'THabHA','LTADUD', 'LTADemand', 'LTAPopObj', 'X80DUD', 'X80Demand', 'X80PopObj','ProtHA', 'ProtHabHA', 'ProtHabNrg', 'LTASurpDef', 'X80SurpDef','wtMeankcal']:
+        cleanMe[i] = pd.to_numeric(cleanMe[i], errors='coerce')
+    except:
+      pass
+    cleanMe = cleanMe.fillna(0.0)
+    #print(cleanMe.head())
     spr = arcpy.Describe(inDataset).spatialReference
     with arcpy.da.InsertCursor(inDataset+cat,fields) as cursor:
       for index,row in cleanMe.iterrows():
         tmp = cleanMe.loc[index]
-        cursor.insertRow((tmp[fields[0]], tmp['CalcHA'], arcpy.FromWKT(tmp.geometry.to_wkt(),spr)))
+        insertme = []
+        for l in tmp[:-1]:
+          insertme.append(l)
+        #insertme = [item for sublist in tmp[:-1] for item in sublist]
+        insertme.append(arcpy.FromWKT(tmp.geometry.to_wkt(),spr))
+        cursor.insertRow(insertme)
     del cursor
     inDataset = inDataset+cat
     return inDataset
@@ -486,29 +505,35 @@ class Waterfowlmodel:
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBintemp'))
     arcpy.Merge_management(mergebin, os.path.join(self.scratch, 'AllDataBintemp'))
     print('\tDissolving features and fixing fields')
-    fields = self.binUnique[1] +" MAX; BinHA MAX; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal MEAN;"
+    fieldstats = self.binUnique[1] +" MAX; BinHA MAX; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal MEAN;"
     if arcpy.Exists(os.path.join(self.scratch, 'AllDataBin')):
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBin'))
-    #print(fields)
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),self.binUnique[1]))>0:
       addHuc = arcpy.da.FeatureClassToNumPyArray(self.binIt, [self.binUnique[0], self.binUnique[1]], null_value='')
       arcpy.da.ExtendTable(os.path.join(self.scratch, 'AllDataBintemp'), self.binUnique[0], addHuc, self.binUnique[0])
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),'BinHA'))>0:
       arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBintemp'), 'BinHA', "DOUBLE", 9, 2, "", "Hectares")      
     #arcpy.CalculateGeometryAttributes_management(os.path.join(self.scratch, 'AllDataBintemp'), "BinHA AREA", area_unit="HECTARES")
-    toSHP = os.path.join(os.path.dirname(os.path.dirname(self.scratch)), 'prepout'+self.aoiname+'.shp')
-    arcpy.FeatureClassToFeatureClass_conversion(os.path.join(self.scratch, 'AllDataBintemp'), os.path.dirname(toSHP), 'prepout'+self.aoiname+'.shp')   
-    cleanMe = gpd.read_file(toSHP, driver='shapefile')
+    #toSHP = os.path.join(os.path.dirname(os.path.dirname(self.scratch)), 'prepout'+self.aoiname+'.shp')
+    #arcpy.FeatureClassToFeatureClass_conversion(os.path.join(self.scratch, 'AllDataBintemp'), os.path.dirname(toSHP), 'prepout'+self.aoiname+'.shp') 
+    #cleanMe = gpd.read_file(os.path.dirname(os.path.join(self.scratch, 'AllDataBintemp')), layer='AllDataBintemp', driver='FileGDB')
+    #cleanMe = gpd.read_file(toSHP, driver='shapefile')
     #print(cleanMe)
-    cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
-    cleanMe['BinHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
-    try:
-        cleanMe = cleanMe.fillna('')
-    except:
-        pass
-    cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))
+    #cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
+    #cleanMe['BinHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
+    #try:
+    #    cleanMe = cleanMe.fillna('')
+    #except:
+    #    pass
+    fields = [self.binUnique[0], self.binUnique[1],'BinHA', 'UrbanHA', 'THabNrg', 'THabHA', 'LTADUD', 'LTADemand', 'LTAPopObj', 'X80DUD', 'X80Demand', 'X80PopObj', 'ProtHA', 'ProtHabHA', 'ProtHabNrg', 'LTASurpDef', 'X80SurpDef', 'wtMeankcal']
+    tmp = self.gpdToGDB(os.path.join(self.scratch, 'AllDataBintemp'), fields, 'BinHA', 'mdlOut')
+    coord_sys = arcpy.Describe(self.wetland).spatialReference
+    arcpy.DefineProjection_management(os.path.join(self.scratch, tmp), coord_sys)
+    #cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))
+    print(fields)
     #print([f.name for f in arcpy.ListFields(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))])
-    arcpy.Dissolve_management(in_features=os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'), out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+    arcpy.Dissolve_management(in_features=tmp, out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fieldstats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+    #arcpy.Dissolve_management(in_features=os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'), out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_'+ self.binUnique[1], self.binUnique[0] + 'name', self.binUnique[0] + ' Name')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_BinHA', self.binUnique[0]+ '_ha', self.binUnique[0] +' Hectares')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_UrbanHA', 'UrbanHA', 'Urban Hectares')
@@ -738,21 +763,39 @@ class Waterfowlmodel:
       print("!"+self.binUnique[0]+"!+ !fips!")
       arcpy.CalculateField_management(outLayer + 'hucfipsum', "hucfip", "!"+self.binUnique[0]+"!+ !fips!", "PYTHON3", '', "TEXT")
       hucfip = arcpy.AddJoin_management(in_layer_or_view=outLayer + 'hucfipsum', in_field="fips", join_table=outLayer + 'fipsum', join_field="fips", join_type="KEEP_ALL")
-      print('\tjoined - printing field names')
+      #print('\tjoined - printing field names')
       arcpy.CalculateField_management(in_table=hucfip, field="PropPCT", expression="(!aggByField" + cat + "hucfipsum.SUM_avalNrgy!/!aggByField" + cat + "fipsum.SUM_SUM_avalNrgy!)", expression_type="PYTHON_9.3", code_block="")
-      print('\tUnion huc and fips and calculate demand')
+      #print('\tUnion huc and fips and calculate demand')
+      if arcpy.Exists(outLayer + 'unionhucfips'):
+        arcpy.Delete_management(outLayer + 'unionhucfips')
       unionme = ' #; '.join([demand, binme]) + ' #'
       arcpy.Union_analysis(in_features=unionme, out_feature_class=outLayer + 'unionhucfips', join_attributes="ALL", cluster_tolerance="", gaps="GAPS")
       arcpy.AddField_management(outLayer + 'unionhucfips', 'hucfip', "TEXT", 50)
       arcpy.CalculateField_management(in_table=outLayer + 'unionhucfips', field="hucfip", expression="!"+self.binUnique[0]+"!+ !fips!", expression_type="PYTHON_9.3", code_block="")
       unionhucfip = arcpy.AddJoin_management(in_layer_or_view=outLayer + 'unionhucfips', in_field="hucfip", join_table=outLayer + 'hucfipsum', join_field="hucfip", join_type="KEEP_ALL")
-      arcpy.CalculateField_management(in_table=unionhucfip, field='LTADUD', expression="!aggByField" + cat + "unionhucfips.LTADUD! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
-      arcpy.CalculateField_management(in_table=unionhucfip, field='LTAPopObj', expression="!aggByField" + cat + "unionhucfips.LTAPopObj! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
-      arcpy.CalculateField_management(in_table=unionhucfip, field='LTADemand', expression="!aggByField" + cat + "unionhucfips.LTADemand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
-      arcpy.CalculateField_management(in_table=unionhucfip, field='X80DUD', expression="!aggByField" + cat + "unionhucfips.X80DUD! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
-      arcpy.CalculateField_management(in_table=unionhucfip, field='X80PopObj', expression="!aggByField" + cat + "unionhucfips.X80PopObj! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
-      arcpy.CalculateField_management(in_table=unionhucfip, field='X80Demand', expression="!aggByField" + cat + "unionhucfips.X80Demand! * !aggByField" + cat + "hucfipsum.PropPCT!", expression_type="PYTHON_9.3", code_block="")
-      arcpy.Dissolve_management(in_features=outLayer + 'unionhucfips', out_feature_class=outLayer+'dissolveHUC', dissolve_field=self.binUnique, statistics_fields="LTADUD SUM;LTAPopObj SUM;LTADemand SUM;X80DUD SUM;X80PopObj SUM;X80Demand SUM", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+      if arcpy.Exists(outLayer+'rdyhucfips'):
+        arcpy.Delete_management(outLayer+'rdyhucfips')
+      arcpy.Dissolve_management(in_features=unionhucfip, out_feature_class=outLayer+'rdyhucfips', dissolve_field="aggByField" + cat + "unionhucfips."+self.binUnique[0]+";aggByField" + cat + "unionhucfips."+"fips;aggByField" + cat + "unionhucfips."+self.binUnique[1], statistics_fields="aggByField" + cat + "unionhucfips.LTADUD MAX;"+"aggByField" + cat + "unionhucfips.LTAPopObj MAX;"+"aggByField" + cat + "unionhucfips.LTADemand MAX;"+"aggByField" + cat + "unionhucfips.X80DUD MAX;"+"aggByField" + cat + "unionhucfips.X80PopObj MAX;"+"aggByField" + cat + "unionhucfips.X80Demand MAX;"+"aggByField" + cat + "hucfipsum.PropPCT MAX", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
+      print('altering fields.')
+      for fields in arcpy.ListFields(outLayer+'rdyhucfips'):
+        print(self.aoiname)
+        print(fields.name)
+      for fld in [self.binUnique[0], self.binUnique[1], 'fips', 'LTADUD', 'LTAPopObj', 'LTADemand', 'X80DUD', 'X80PopObj', 'X80Demand', 'PropPCT']:
+        if fld in [self.binUnique[0], self.binUnique[1], 'fips']:
+          if not len(arcpy.ListFields(outLayer+'rdyhucfips',fld))>0:
+            arcpy.AlterField_management(outLayer+'rdyhucfips',"aggByField" + cat + "unionhucfips_"+fld, fld, fld)
+        elif fld in ['PropPCT']:
+          if not len(arcpy.ListFields(outLayer+'rdyhucfips',fld))>0:
+            arcpy.AlterField_management(outLayer+'rdyhucfips',"MAX_aggByField" + cat + "hucfipsum_"+fld, fld, fld)
+        else:
+          if not len(arcpy.ListFields(outLayer+'rdyhucfips',fld))>0:
+            arcpy.AlterField_management(outLayer+'rdyhucfips',"MAX_aggByField" + cat + "unionhucfips_"+fld, fld, fld)
+      for fld in ['LTADUD', 'LTAPopObj', 'LTADemand', 'X80DUD', 'X80PopObj', 'X80Demand']:
+        arcpy.CalculateField_management(in_table=outLayer+'rdyhucfips', field=fld, expression="!"+fld+"! * !PropPCT!", expression_type="PYTHON_9.3", code_block="")
+      if arcpy.Exists(outLayer+'dissolveHUC'):
+        arcpy.Delete_management(outLayer+'dissolveHUC')
+      print('dissolved. calculating fields.')
+      arcpy.Dissolve_management(in_features=outLayer+'rdyhucfips', out_feature_class=outLayer+'dissolveHUC', dissolve_field=self.binUnique, statistics_fields="LTADUD SUM;LTAPopObj SUM;LTADemand SUM;X80DUD SUM;X80PopObj SUM;X80Demand SUM", multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTADUD', 'LTADUD', 'Long term average Duck use days')
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTAPopObj', 'LTAPopObj', 'Long term average Population objective')
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_LTADemand', 'LTADemand', 'Long term average energy demand (kcal)')
@@ -761,11 +804,11 @@ class Waterfowlmodel:
       arcpy.AlterField_management(outLayer+'dissolveHUC', 'SUM_X80Demand', 'X80Demand', 'Long term average energy demand (kcal)')      
       return outLayer+'dissolveHUC'
     except Exception as e:
-      print(e)
+      print("{} FOR {}".format(e, self.aoiname))
       exc_type, exc_obj, exc_tb = sys.exc_info()
       fname = os.path.split(exc_tb.tb_frame.f_code.co_filename)[1]
       print(exc_type, fname, exc_tb.tb_lineno)
-      sys.exit()
+      sys.exit(self.aoiname + " exited")
 
   def summarizebySpecies(self, demand, scratch, binIt, binUnique, mergedAll, fieldtable):
     """
@@ -871,6 +914,7 @@ class Waterfowlmodel:
 
   def prepProtected(self, protlist):
     """
+    DEPRECATED
     Prepares protected lands by merging protected features in the passed list.  This needs to be updated to use GDB instead of shapefile.
 
     :param protlist: Protected feature classes

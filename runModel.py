@@ -255,7 +255,7 @@ def main(argv):
    # Use aoi and aoifield to create list of unique elements.  Create list of waterfowlmodel init params for each unique aoi
    dstList = []
    unique_values = set(row[0] for row in arcpy.da.SearchCursor(aoi, aoifield))
-   unique_values = {'NY'} # Overwriting the state selection here.
+   #unique_values = {'NY'} # Overwriting the state selection here.
    for oneAOI in unique_values:
       scratchgdb = os.path.join(workspace, args.aoi[0], str(oneAOI) + "_scratch.gdb")
       if not (os.path.exists(scratchgdb)):
@@ -267,7 +267,7 @@ def main(argv):
 
    # Setup pool and map
    print("Creating pool")
-   with poolcontext(processes=8) as pool:
+   with poolcontext(processes=7) as pool:
       results = pool.map(partial(calc, debug=debug, args=args, outputgdb=outputgdb, nced=nced, padus=padus, aoiname=aoiname, aoiworkspace=aoiworkspace, cleanRun=cleanRun, fieldTable=fieldTable), dstList)
    printlog('\t Returning results', ' '.join(results))
 
@@ -316,7 +316,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       if int(len(args.extra)/2) > 0:
          dst.mergedenergy = dst.joinEnergy(dst.wetland, dst.extra, dst.mergedenergy)
       else:
-         dst.mergedenergy = dst.wetland
+         dst.mergedenergy = arcpy.CopyFeatures_management(dst.wetland, dst.mergedenergy)
       printlog('\tPrep supply Energy for ', dstinfo[1])
       allEnergy = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.mergedenergy, selection_type="NEW_SELECTION", where_clause="CLASS IS NOT NULL")
       if arcpy.Exists(dst.mergedenergy + 'Selection'):
@@ -339,8 +339,9 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
          print('Energy needs to be run.  no aggtosupplyenergy')
          sys.exit()
       #toSHP = os.path.join(os.path.dirname(os.path.dirname(dst.mergedenergy)), 'test'+dst.aoiname+'.shp')         
-      if arcpy.Exists(os.path.join(dst.scratch,'Wetland_projectedSelectionclean')):
-         dst.mergedenergy = os.path.join(dst.scratch,'Wetland_projectedSelectionclean')
+      if arcpy.Exists(os.path.join(dst.scratch,'MergedEnergySelectionclean')):
+         dst.mergedenergy = "MergedEnergySelectionclean"
+         #dst.mergedenergy = os.path.join(dst.scratch,'Wetland_projectedSelectionclean')
       else:
          print('Energy needs to be run. no mergedenergy')
          sys.exit()
@@ -351,17 +352,25 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
       if arcpy.management.GetCount(selectDemand)[0] > "0":
          arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
+
          demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
+         # Debug commented out these two lines below
          mergedAll, wtmarray = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
-         if dst.binUnique[0] != 'OBJECTID':
-            mergedAll = arcpy.SelectLayerByAttribute_management(in_layer_or_view=mergedAll, selection_type="NEW_SELECTION", where_clause=dst.binUnique[0]+ " <> ''")
+         #mergedAll = arcpy.SelectLayerByAttribute_management(in_layer_or_view=mergedAll, selection_type="NEW_SELECTION", where_clause=dst.binUnique[0]+ " <> ''")
+         # Debug added line
+         #mergedAll = os.path.join(dst.scratch, 'MergeAll')
          dst.demand = dst.aggByField(mergedAll, dst.scratch, demandSelected, dst.binIt, 'energydemand')
+         print('finished agg by field')
+         dst.weightedMean(dst.demand, wtmarray)
       elif arcpy.management.GetCount(selectDemand)[0] == "0":
          print('No records with "All" species. Not calculated')
    else:
       demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
       dst.demand = os.path.join(dst.scratch, 'aggByFieldenergydemanddissolveHUC')
+      #mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
+      #dst.weightedMean(dst.demand, wtmarray)
       #dst.origDemand = dst.demand.inData
+
    if debug[2]: # Species proportion,use the original demand layer, and not the derived demand layer that only includes summed values for all species.
       printlog('\n#### ENERGY DEMAND BY SPECIES for ', dstinfo[1])
       dst.summarizebySpecies(dst.origDemand, dst.scratch, dst.binIt, dst.binUnique, os.path.join(dst.scratch, 'MergeAll'), fieldTable)
@@ -378,7 +387,12 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
          dst.protectedMerge = dst.pandasMerge(padus.land, nced.land, os.path.join(aoiworkspace, "Protected" + aoiname + ".shp"))
       else:
          #dst.protectedMerge = padus.land
-         dst.protectedMerge = dst.gpdToGDB(padus.land, ['NAME_E'], 'padfix')
+         if not len(arcpy.ListFields(padus.land,'CalcHA'))>0:
+            arcpy.AddField_management(padus.land, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
+         dst.protectedMerge = dst.gpdToGDB(padus.land, ['NAME_E'], 'CalcHA', 'padfix')
+         coord_sys = arcpy.Describe(dst.wetland).spatialReference
+         arcpy.DefineProjection_management(dst.protectedMerge, coord_sys)
+
       protectedbin = dst.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "protectedbin")
       if not len(arcpy.ListFields(protectedbin,'ProtHA'))>0:
          if len(arcpy.ListFields(protectedbin,'SUM_CalcHA'))>0:
@@ -400,21 +414,18 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
             arcpy.AlterField_management(dst.protectedEnergy, 'avalNrgy', 'ProtHabNrg', 'ProtectedHabitatEnergy')
    else:
       dst.protectedEnergy = os.path.join(dst.scratch, 'aggtoprotectedEnergy')
-      dst.protectedMerge = os.path.join(dst.scratch, 'padusaoipadfix')
+      if nced:
+         dst.protectedMerge = os.path.join(aoiworkspace, "Protected" + aoiname + ".shp")
+      else:   
+         dst.protectedMerge = os.path.join(dst.scratch, 'protectedEnergy')
    
    if debug[4]: #Habitat proportions
       printlog('\n#### HABITAT PERCENTAGE for ', dstinfo[1])
       if not debug[1]:
          mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
       dst.pctHabitatType(dst.binUnique[0], wtmarray)
-
-      if debug[6]:
-         printlog('\n#### HABITAT WEIGHTED MEAN for ', dstinfo[1])
-         if not debug[1]:
-            mergedAll, wtmarray = dst.prepnpTables(dst.demand, dst.binIt, dst.mergedenergy, dst.scratch)
-         dst.weightedMean(dst.demand, wtmarray)
-
-   if debug[5]:
+       
+   if debug[5]: #Urban calculations
       printlog('\n#### Calculate Urban HA for ', dstinfo[1])
       desc = arcpy.Describe(dst.aoi)
       xmin = desc.extent.XMin
@@ -451,7 +462,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
       dst.urban = os.path.join(dst.scratch, 'aggtourban')
    
    mergebin = []
-   if debug[6]:
+   if debug[6]: #full model
       printlog('\n#### Merging all the data for output for ', dstinfo[1])
       print('Energy supply', dst.energysupply)
       print('Energy demand', dst.demand)
