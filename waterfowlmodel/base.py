@@ -72,7 +72,7 @@ def calculateStandardizedABDU(WebReady, binUnique):
   print("max ABDU Demand Value = ", maxVal)
 
   # Change Null Values to 0 for specific values; calculate standardized values
-  ####      0         1                             2                     3                               4                             5
+  ####      0                  1                             2                     3                               4                             5
   fdList = [binUnique[0], 'abdu_demand_80th_kcal', 'restoregoal_80th_ha', 'protectgoal_80th_ha', 'abdu_norm_restoregoal_80th', 'abdu_norm_protectgoal_80th']
   
   with arcpy.da.UpdateCursor(WebReady, fdList) as cursor:
@@ -372,7 +372,7 @@ class Waterfowlmodel:
     #print(len(fields))
     #print(cleanMe.columns)
     try:
-      for i in ['UrbanHA', 'THabNrg', 'THabHA','LTADUD', 'LTADemand', 'LTAPopObj', 'X80DUD', 'X80Demand', 'X80PopObj','ProtHA', 'ProtHabHA', 'ProtHabNrg', 'LTASurpDef', 'X80SurpDef','wtMeankcal']:
+      for i in ['UrbanHA', 'THabNrg', 'THabHA','LTADUD', 'LTADemand', 'LTAPopObj', 'X80DUD', 'X80Demand', 'X80PopObj','ProtHA', 'ProtHabHA', 'ProtHabNrg', 'LTASurpDef', 'X80SurpDef','wtMeankcal', 'unavailHA']:
         cleanMe[i] = pd.to_numeric(cleanMe[i], errors='coerce')
     except:
       pass
@@ -505,7 +505,7 @@ class Waterfowlmodel:
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBintemp'))
     arcpy.Merge_management(mergebin, os.path.join(self.scratch, 'AllDataBintemp'))
     print('\tDissolving features and fixing fields')
-    fieldstats = self.binUnique[1] +" MAX; BinHA MAX; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal MEAN;"
+    fieldstats = self.binUnique[1] +" MAX; BinHA MAX; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal MEAN;unavailHA SUM;"
     if arcpy.Exists(os.path.join(self.scratch, 'AllDataBin')):
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBin'))
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),self.binUnique[1]))>0:
@@ -525,12 +525,12 @@ class Waterfowlmodel:
     #    cleanMe = cleanMe.fillna('')
     #except:
     #    pass
-    fields = [self.binUnique[0], self.binUnique[1],'BinHA', 'UrbanHA', 'THabNrg', 'THabHA', 'LTADUD', 'LTADemand', 'LTAPopObj', 'X80DUD', 'X80Demand', 'X80PopObj', 'ProtHA', 'ProtHabHA', 'ProtHabNrg', 'LTASurpDef', 'X80SurpDef', 'wtMeankcal']
+    fields = [self.binUnique[0], self.binUnique[1],'BinHA', 'UrbanHA', 'THabNrg', 'THabHA', 'LTADUD', 'LTADemand', 'LTAPopObj', 'X80DUD', 'X80Demand', 'X80PopObj', 'ProtHA', 'ProtHabHA', 'ProtHabNrg', 'LTASurpDef', 'X80SurpDef', 'wtMeankcal', 'unavailHA']
     tmp = self.gpdToGDB(os.path.join(self.scratch, 'AllDataBintemp'), fields, 'BinHA', 'mdlOut')
-    coord_sys = arcpy.Describe(self.wetland).spatialReference
-    arcpy.DefineProjection_management(os.path.join(self.scratch, tmp), coord_sys)
+    coord_sys = arcpy.Describe(self.binIt).spatialReference
+    arcpy.DefineProjection_management(tmp, coord_sys)
     #cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))
-    print(fields)
+    #print(fields)
     #print([f.name for f in arcpy.ListFields(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))])
     arcpy.Dissolve_management(in_features=tmp, out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fieldstats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     #arcpy.Dissolve_management(in_features=os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'), out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
@@ -551,8 +551,9 @@ class Waterfowlmodel:
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_LTASurpDef', 'surpdef_lta_kcal', 'LTA Energy Surplus or Deficit (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_X80SurpDef', 'surpdef_80th_kcal', 'X80 Energy Surplus or Deficit (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MEAN_wtMeankcal', 'wtMean_kcal_per_ha', 'Weighted mean (kcal)')
+    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_unavailHA', 'unavailHA', 'Unavailable habitat hectares (Protected and Urban)')
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'available_ha', "DOUBLE", 9, 2, "", "Potentially Available Habitat Hectares")
-    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='available_ha', expression="!" + self.binUnique[0] + "_ha! - !UrbanHA! - !protected_ha!", expression_type="PYTHON_9.3", code_block="")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='available_ha', expression="!" + self.binUnique[0] + "_ha! - !unavailHA!", expression_type="PYTHON_9.3", code_block="")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_lta_kcal', "DOUBLE", 9, 2, "", "Long-Term Average Energy Protection Needed (kcal)")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_80th_kcal', "DOUBLE", 9, 2, "", "80th Percentile Energy Protection Needed (kcal)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='nrgprot_lta_kcal', expression="!demand_lta_kcal! - !protected_kcal! if !demand_lta_kcal! - !protected_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
@@ -958,7 +959,7 @@ class Waterfowlmodel:
     diff['CalcHA'] = diff.geometry.area/10000 #/10,000 for Hectares
     #diff = gpd.GeoDataFrame(diff, crs=cc)
     diff.to_file(output)
-    return output
+    return output, diff
 
   @report_time
   def pandasMergeMulti(self, toMerge, output):
@@ -1111,3 +1112,31 @@ class Waterfowlmodel:
       arcpy.DeleteField_management(inDataset, 'wtMeankcal')
     arcpy.da.ExtendTable(inDataset, self.binUnique[0], outnp, self.binUnique[0])
     return
+
+  def calcAvailable(self, urbanraster, protectedPoly):
+      """
+      Merges protected and urban.  Need to replace or merge with the pandasMerge function
+
+      :param protected: List of dataset locations to be merged
+      :type protected: list
+      :param urban: List of dataset locations to be merged
+      :type urban: list    
+      :return output: Location of output
+      :rtype output: str    
+      """
+      print('Calculating unavailable area for ', self.aoiname)
+      arcpy.AddField_management(protectedPoly,'ras')
+      arcpy.CalculateField_management(protectedPoly, 'ras', "1", "PYTHON3")
+      arcpy.PolygonToRaster_conversion(protectedPoly, 'ras', os.path.join(self.scratch, 'protectedras'))
+      arcpy.MosaicToNewRaster_management(urbanraster +";"+os.path.join(self.scratch, 'protectedras'), self.scratch, "protectedras", None, "1_BIT", 30, 1, "MAXIMUM", "FIRST")
+      coord_sys = arcpy.Describe(self.binIt).spatialReference
+      arcpy.DefineProjection_management(os.path.join(self.scratch,'protectedras'), coord_sys)
+      #create bin for available
+      arcpy.FeatureClassToFeatureClass_conversion(self.binIt, self.scratch, "unavailableBin")
+      arcpy.ia.ZonalStatisticsAsTable(os.path.join(self.scratch, 'unavailableBin'),self.binUnique[0],os.path.join(self.scratch,'protectedras'), os.path.join(self.scratch,'protectedrasarea'), "DATA", "SUM", "CURRENT_SLICE", 90, "AUTO_DETECT")
+      #arcpy.ZonalStatisticsAsTable_ra(os.path.join(self.scratch, 'unavailableBin'), self.binUnique[0], os.path.join(self.scratch,'protectedras'), os.path.join(self.scratch, 'protectedrasarea'), "DATA", "SUM", "CURRENT_SLICE", 90, "AUTO_DETECT")
+      arcpy.AddField_management(os.path.join(self.scratch, 'protectedrasarea'), 'unavailHA')
+      arcpy.CalculateField_management(os.path.join(self.scratch, 'protectedrasarea'), 'unavailHA', '!SUM! * 30 * 30 * 0.0001', "PYTHON3")
+      calcha = arcpy.da.TableToNumPyArray(os.path.join(self.scratch, 'protectedrasarea'), [self.binUnique[0], 'unavailHA'])
+      arcpy.da.ExtendTable(os.path.join(self.scratch, 'unavailableBin'),self.binUnique[0], calcha, self.binUnique[0])
+      return os.path.join(self.scratch, 'unavailableBin')
