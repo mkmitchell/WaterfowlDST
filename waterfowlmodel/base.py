@@ -69,7 +69,7 @@ def calculateStandardizedABDU(WebReady, binUnique):
   newfds = [f for f in fds if f not in fdList]
 
   for fd in newfds:
-    arcpy.management.AddField(fc, fd, "DOUBLE")
+    arcpy.management.AddField(WebReady, fd, "DOUBLE")
 
   # create a list of unique values that include 0 to find the min and max values
   def fdValues(fc, field):
