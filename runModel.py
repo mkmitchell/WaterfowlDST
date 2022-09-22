@@ -16,7 +16,7 @@ from contextlib import contextmanager
 from pyproj.crs import CRS
 import geopandas as gpd
 from multiprocessing import Pool
-from multiprocessing_logging import install_mp_handler
+#from multiprocessing_logging import install_mp_handler
 
 def printlog(txt, var):
    print(txt + ':', var)
@@ -255,7 +255,7 @@ def main(argv):
    # Use aoi and aoifield to create list of unique elements.  Create list of waterfowlmodel init params for each unique aoi
    dstList = []
    unique_values = set(row[0] for row in arcpy.da.SearchCursor(aoi, aoifield))
-   #unique_values = {'NY'} # Overwriting the state selection here.
+   #unique_values = {'MO', 'MN', 'WI'} # Overwriting the state selection here.
    for oneAOI in unique_values:
       scratchgdb = os.path.join(workspace, args.aoi[0], str(oneAOI) + "_scratch.gdb")
       if not (os.path.exists(scratchgdb)):
@@ -285,7 +285,8 @@ def main(argv):
       try:
          waterfowlmodel.zipup.zipUp(os.path.join(os.path.join(workspace, args.aoi[0])), outputFolder)
       except Exception as e:
-         print(e)   
+         print(e)
+         errors = True
 
    print('#####################################')
    print("Started a: ", comparetime.strftime('%H:%M:%S on %A, %B the %dth, %Y'))
@@ -294,6 +295,7 @@ def main(argv):
 
 def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cleanRun, fieldTable):
    try:
+      errors = False
       startT = time.perf_counter()
       print('\n#### Create waterfowl object for ', dstinfo[1])   
       aoiname = dstinfo[1]
@@ -339,23 +341,21 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
          if arcpy.Exists(os.path.join(dst.scratch, 'aggtosupplyenergy')):
             dst.energysupply = os.path.join(dst.scratch, 'aggtosupplyenergy')
          else:
-            print('Energy needs to be run.  no aggtosupplyenergy')
-            sys.exit()
+            print(' !! Energy needs to be run.  no aggtosupplyenergy. {}'.format(dst.aoiname))
+            raise('No aggtosupply for {}'.format(dst.aoiname))
          #toSHP = os.path.join(os.path.dirname(os.path.dirname(dst.mergedenergy)), 'test'+dst.aoiname+'.shp')         
          if arcpy.Exists(os.path.join(dst.scratch,'MergedEnergySelectionclean')):
             dst.mergedenergy = "MergedEnergySelectionclean"
             #dst.mergedenergy = os.path.join(dst.scratch,'Wetland_projectedSelectionclean')
          else:
-            print('Energy needs to be run. no mergedenergy')
-            sys.exit()
-
+            print(' !! Energy needs to be run. no mergedenergy {}'.format(dst.aoiname))
+            raise('No mergedenergy for {}'.format(dst.aoiname))
       if debug[1]: #Energy demand
          printlog('\n#### ENERGY DEMAND for ', dstinfo[1])
          print('\n dst.demand', dst.demand)
          selectDemand = arcpy.SelectLayerByAttribute_management(in_layer_or_view=dst.demand, selection_type="NEW_SELECTION", where_clause="species = 'All'")
          if arcpy.management.GetCount(selectDemand)[0] > "0":
             arcpy.CopyFeatures_management(selectDemand, os.path.join(dst.scratch, 'EnergyDemandSelected'))
-
             demandSelected = os.path.join(dst.scratch, 'EnergyDemandSelected')
             # Debug commented out these two lines below
             mergedAll, wtmarray = dst.prepnpTables(demandSelected, dst.binIt, dst.mergedenergy, dst.scratch)
@@ -395,7 +395,6 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
             dst.protectedMerge, protdiff = dst.gpdToGDB(padus.land, ['NAME_E'], 'CalcHA', 'padfix')
             coord_sys = arcpy.Describe(dst.wetland).spatialReference
             arcpy.DefineProjection_management(dst.protectedMerge, coord_sys)
-
          protectedbin = dst.aggproportion(dst.binIt, dst.protectedMerge, "OBJECTID", ["CalcHA"], [dst.binUnique], dst.scratch, "protectedbin")
          if not len(arcpy.ListFields(protectedbin,'ProtHA'))>0:
             if len(arcpy.ListFields(protectedbin,'SUM_CalcHA'))>0:
@@ -458,6 +457,7 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
          try:
             cleanMe = cleanMe.fillna('')
          except:
+            print('not cleaning up cleanMe for', dst.aoiname)
             pass
          cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'urbanCleaned'+aoiname+'.shp'))
          dst.urban = os.path.join(os.path.dirname(toSHP), 'urbanCleaned'+aoiname+'.shp')      
@@ -539,22 +539,22 @@ def calc(dstinfo, debug, args, outputgdb, nced, padus, aoiname, aoiworkspace, cl
          try:
             print('\n#### Merging for Web pipeline for ' + dst.aoiname+ ' ####')
             webReady = dst.mergeForWeb(outData, outSpecies if debug[2] else os.path.join(dst.scratch, 'DemandBySpecies'), os.path.join(dst.scratch, 'HabitatProportion'), outputgdb)
-            print(webReady)
          except Exception as e:
             print(e)
-            pass
+            errors = True
+            raise NameError(' !! Error {} for {}'.format(e, dst.aoiname))
       else:
          webReady = os.path.join(outputgdb, dst.aoiname+'_WebReady')
 
-      print("\nComplete run for: "+dst.aoiname +" at Date and time: ", datetime.datetime.now().strftime('%H:%M:%S on %A, %B the %dth, %Y'))
-      #print('\nCompleted in {}'.format(time.perf_counter() - startT))
-      print(webReady)
+      if errors:
+         print("\n ** Complete run for: "+dst.aoiname +" with errors")
+      else:
+         print("\n ** Complete run for: "+dst.aoiname+ " successfully")         
       print('#####################################\n')
       return webReady
    except Exception as e:
-      print('Error in ' + dst.aoiname)
-      print(e)
-      return ''
+      print(' !! Error {} in {}'.format(e, dst.aoiname))
+      raise NameError('Error {} for {}'.format(e, dst.aoiname))
 
 if __name__ == "__main__":
    print('\nRunning model')

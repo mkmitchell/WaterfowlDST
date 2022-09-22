@@ -14,9 +14,9 @@ import numpy as np
 from arcgis.features import FeatureLayer, GeoAccessor, GeoSeriesAccessor
 import geopandas as gpd
 from pyproj.crs import CRS
-from multiprocessing_logging import install_mp_handler
+#from multiprocessing_logging import install_mp_handler
 
-install_mp_handler()    
+#install_mp_handler()    
 def report_time(func):
     '''Decorator reporting the execution time'''
     @wraps(func)
@@ -406,65 +406,67 @@ class Waterfowlmodel:
     """
     print('\tCalculate energy for', inDataset)
     logging.info("Calculate energy for " + inDataset)
-    if not len(arcpy.ListFields(inDataset,'avalNrgy'))>0:
-      arcpy.AddField_management(inDataset, 'avalNrgy', "DOUBLE", 9, "", "", "AvailableEnergy")    
-    if not len(arcpy.ListFields(inDataset,'kcal'))>0:
-      arcpy.AddField_management(inDataset, 'kcal', "LONG")
-    if not len(arcpy.ListFields(inDataset,'CalcHA'))>0:
-      arcpy.AddField_management(inDataset, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
-    #toSHP = os.path.join(os.path.dirname(os.path.dirname(inDataset)), 'test'+self.aoiname+'.shp')
-    cleanMe = gpd.read_file(os.path.dirname(inDataset), layer=os.path.basename(inDataset), driver='FileGDB')
-    cleanMe = cleanMe[['kcal', 'CLASS', 'avalNrgy', 'CalcHA','geometry']]
-    cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
-    cleanMe = cleanMe[~cleanMe['CLASS'].isnull()]
-    cleanMe = cleanMe.explode(ignore_index=True)
-    cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
     try:
-      cleanMe = cleanMe.fillna('')
-    except:
-      pass
-    cleanMe['kcal'] = 0
-    cleanMe['avalNrgy'] = 0
-    arcpy.CreateFeatureclass_management(os.path.dirname(inDataset), os.path.basename(inDataset)+"clean",'POLYGON', inDataset)
-    spr = arcpy.Describe(inDataset).spatialReference
-    with arcpy.da.InsertCursor(inDataset+"clean",['kcal', 'CLASS', 'avalNrgy', 'CalcHA', 'SHAPE@']) as cursor:
-      for index,row in cleanMe.iterrows():
-        tmp = cleanMe.loc[index]
-        cursor.insertRow((0, tmp['CLASS'],0, tmp['CalcHA'], arcpy.FromWKT(tmp.geometry.to_wkt(),spr)))
-    del cursor
-    inDataset = inDataset+"clean"
-    # Read data from file:
-    print('\tReading in habitat file')
-    file_extension = os.path.splitext(xTable)[-1].lower()
-    if file_extension == ".json":
-      dataDict = json.load(open(xTable))
-    else:
-      with open(xTable, mode='r') as infile:
-        reader = csv.reader(infile)
-        dataDict = {rows[0]:rows[1].split(',') for rows in reader}
-    print('\tCalculating available energy for', inDataset)
-    with arcpy.da.UpdateCursor(inDataset, ['kcal', 'CLASS', 'avalNrgy', 'CalcHA']) as cursor:
-      print('Entering calculation')
-      for row in cursor:
-        if row[0] is None or row[0]== 0:
-          for key, value in dataDict.items():
-            try:
-              if row[1] == key:
-                row[0] = value[0]
-                row[2] = float(value[0]) * float(row[3])
-                cursor.updateRow(row)
-            except Exception as e:
-              print('Error in calculating available habitat')
-              print('Error', e)
-        else:
-          print('Error in calculating energy')
-          continue
+      if not len(arcpy.ListFields(inDataset,'avalNrgy'))>0:
+        arcpy.AddField_management(inDataset, 'avalNrgy', "DOUBLE", 9, "", "", "AvailableEnergy")    
+      if not len(arcpy.ListFields(inDataset,'kcal'))>0:
+        arcpy.AddField_management(inDataset, 'kcal', "LONG")
+      if not len(arcpy.ListFields(inDataset,'CalcHA'))>0:
+        arcpy.AddField_management(inDataset, 'CalcHA', "DOUBLE", 9, 2, "", "Hectares")
+      cleanMe = gpd.read_file(os.path.dirname(inDataset), layer=os.path.basename(inDataset), driver='FileGDB')
+      cleanMe = cleanMe[['kcal', 'CLASS', 'avalNrgy', 'CalcHA','geometry']]
+      cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
+      cleanMe = cleanMe[~cleanMe['CLASS'].isnull()]
+      cleanMe = cleanMe.explode(ignore_index=True)
+      cleanMe['CalcHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
       try:
-        del cursor, row
+        cleanMe = cleanMe.fillna('')
       except:
-        print('error with row')
-    print('Energy calculated')
-    return inDataset
+        pass
+      cleanMe['kcal'] = 0
+      cleanMe['avalNrgy'] = 0
+      arcpy.CreateFeatureclass_management(os.path.dirname(inDataset), os.path.basename(inDataset)+"clean",'POLYGON', inDataset)
+      spr = arcpy.Describe(inDataset).spatialReference
+      with arcpy.da.InsertCursor(inDataset+"clean",['kcal', 'CLASS', 'avalNrgy', 'CalcHA', 'SHAPE@']) as cursor:
+        for index,row in cleanMe.iterrows():
+          tmp = cleanMe.loc[index]
+          cursor.insertRow((0, tmp['CLASS'],0, tmp['CalcHA'], arcpy.FromWKT(tmp.geometry.to_wkt(),spr)))
+      del cursor
+      inDataset = inDataset+"clean"
+      # Read data from file:
+      print('\tReading in habitat file')
+      file_extension = os.path.splitext(xTable)[-1].lower()
+      if file_extension == ".json":
+        dataDict = json.load(open(xTable))
+      else:
+        with open(xTable, mode='r') as infile:
+          reader = csv.reader(infile)
+          dataDict = {rows[0]:rows[1].split(',') for rows in reader}
+      print('\tCalculating available energy for', inDataset)
+      with arcpy.da.UpdateCursor(inDataset, ['kcal', 'CLASS', 'avalNrgy', 'CalcHA']) as cursor:
+        print('Entering calculation')
+        for row in cursor:
+          if row[0] is None or row[0]== 0:
+            for key, value in dataDict.items():
+              try:
+                if row[1] == key:
+                  row[0] = value[0]
+                  row[2] = float(value[0]) * float(row[3])
+                  cursor.updateRow(row)
+              except Exception as e:
+                print(' !! Error {} in calculating available habitat for {}'.format(e, self.aoiname))
+          else:
+            print(' !! Error in calculating available habitat for {}'.format(self.aoiname))
+            continue
+        try:
+          del cursor, row
+        except Exception as et:
+          print(' !! Error {} in calculating available habitat for {}'.format(e, self.aoiname))
+      print('Energy calculated')
+      return inDataset
+    except Exception as e:
+      print(' !! Error {} for {}'.format(e, self.aoiname))
+      raise(' !! Error {} for {}'.format(e, self.aoiname))
 
   def dstOutput(self, mergebin, outputgdb):
     """
@@ -505,7 +507,7 @@ class Waterfowlmodel:
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBintemp'))
     arcpy.Merge_management(mergebin, os.path.join(self.scratch, 'AllDataBintemp'))
     print('\tDissolving features and fixing fields')
-    fieldstats = self.binUnique[1] +" MAX; BinHA MAX; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal MEAN;unavailHA SUM;"
+    fieldstats = self.binUnique[1] +" MAX; BinHA MAX; UrbanHA SUM; THabNrg SUM;THabHA SUM;LTADUD SUM;LTADemand SUM; LTAPopObj SUM;X80DUD SUM;X80Demand SUM; X80PopObj SUM;ProtHA SUM;ProtHabHA SUM;ProtHabNrg SUM;LTASurpDef SUM;X80SurpDef SUM;wtMeankcal SUM;unavailHA MAX;"
     if arcpy.Exists(os.path.join(self.scratch, 'AllDataBin')):
       arcpy.Delete_management(os.path.join(self.scratch, 'AllDataBin'))
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),self.binUnique[1]))>0:
@@ -513,27 +515,11 @@ class Waterfowlmodel:
       arcpy.da.ExtendTable(os.path.join(self.scratch, 'AllDataBintemp'), self.binUnique[0], addHuc, self.binUnique[0])
     if not len(arcpy.ListFields(os.path.join(self.scratch, 'AllDataBintemp'),'BinHA'))>0:
       arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBintemp'), 'BinHA', "DOUBLE", 9, 2, "", "Hectares")      
-    #arcpy.CalculateGeometryAttributes_management(os.path.join(self.scratch, 'AllDataBintemp'), "BinHA AREA", area_unit="HECTARES")
-    #toSHP = os.path.join(os.path.dirname(os.path.dirname(self.scratch)), 'prepout'+self.aoiname+'.shp')
-    #arcpy.FeatureClassToFeatureClass_conversion(os.path.join(self.scratch, 'AllDataBintemp'), os.path.dirname(toSHP), 'prepout'+self.aoiname+'.shp') 
-    #cleanMe = gpd.read_file(os.path.dirname(os.path.join(self.scratch, 'AllDataBintemp')), layer='AllDataBintemp', driver='FileGDB')
-    #cleanMe = gpd.read_file(toSHP, driver='shapefile')
-    #print(cleanMe)
-    #cc = CRS('PROJCS["North_America_Albers_Equal_Area_Conic",GEOGCS["GCS_North_American_1983",DATUM["North_American_Datum_1983",SPHEROID["GRS_1980",6378137.0,298.257222101]],PRIMEM["Greenwich",0.0],UNIT["Degree",0.0174532925199433],AUTHORITY["EPSG","4269"]],PROJECTION["Albers_Conic_Equal_Area"],PARAMETER["False_Easting",0.0],PARAMETER["False_Northing",0.0],PARAMETER["longitude_of_center",-96.0],PARAMETER["Standard_Parallel_1",20.0],PARAMETER["Standard_Parallel_2",60.0],PARAMETER["latitude_of_center",40.0],UNIT["Meter",1.0],AUTHORITY["Esri","102008"]]')
-    #cleanMe['BinHA'] = cleanMe.geometry.area/10000 #/10,000 for Hectares
-    #try:
-    #    cleanMe = cleanMe.fillna('')
-    #except:
-    #    pass
     fields = [self.binUnique[0], self.binUnique[1],'BinHA', 'UrbanHA', 'THabNrg', 'THabHA', 'LTADUD', 'LTADemand', 'LTAPopObj', 'X80DUD', 'X80Demand', 'X80PopObj', 'ProtHA', 'ProtHabHA', 'ProtHabNrg', 'LTASurpDef', 'X80SurpDef', 'wtMeankcal', 'unavailHA']
     tmp = self.gpdToGDB(os.path.join(self.scratch, 'AllDataBintemp'), fields, 'BinHA', 'mdlOut')
     coord_sys = arcpy.Describe(self.binIt).spatialReference
     arcpy.DefineProjection_management(tmp, coord_sys)
-    #cleanMe.to_file(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))
-    #print(fields)
-    #print([f.name for f in arcpy.ListFields(os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'))])
     arcpy.Dissolve_management(in_features=tmp, out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fieldstats, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
-    #arcpy.Dissolve_management(in_features=os.path.join(os.path.dirname(toSHP), 'prepoutCleaned'+self.aoiname+'.shp'), out_feature_class=os.path.join(self.scratch, 'AllDataBin'), dissolve_field=self.binUnique[0], statistics_fields=fields, multi_part="MULTI_PART", unsplit_lines="DISSOLVE_LINES")
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_'+ self.binUnique[1], self.binUnique[0] + 'name', self.binUnique[0] + ' Name')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_BinHA', self.binUnique[0]+ '_ha', self.binUnique[0] +' Hectares')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_UrbanHA', 'UrbanHA', 'Urban Hectares')
@@ -550,10 +536,12 @@ class Waterfowlmodel:
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_ProtHabNrg', 'protected_kcal', 'Protected Habitat Energy (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_LTASurpDef', 'surpdef_lta_kcal', 'LTA Energy Surplus or Deficit (kcal)')
     arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_X80SurpDef', 'surpdef_80th_kcal', 'X80 Energy Surplus or Deficit (kcal)')
-    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MEAN_wtMeankcal', 'wtMean_kcal_per_ha', 'Weighted mean (kcal)')
-    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_unavailHA', 'unavailHA', 'Unavailable habitat hectares (Protected and Urban)')
+    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'SUM_wtMeankcal', 'wtMean_kcal_per_ha', 'Weighted mean (kcal)')
+    arcpy.AlterField_management(os.path.join(self.scratch, 'AllDataBin'), 'MAX_unavailHA', 'unavailHA', 'Unavailable habitat hectares (Protected and Urban)')
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'available_ha', "DOUBLE", 9, 2, "", "Potentially Available Habitat Hectares")
-    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='available_ha', expression="!" + self.binUnique[0] + "_ha! - !unavailHA!", expression_type="PYTHON_9.3", code_block="")
+    arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'state_abbrev', "TEXT", field_length=3,field_alias="State Abbreviation")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='state_abbrev', expression=self.aoiname, expression_type="PYTHON_9.3", code_block="")
+    arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='available_ha', expression="!" + self.binUnique[0] + "_ha! - !unavailHA! if !" + self.binUnique[0] + "_ha! - !unavailHA! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_lta_kcal', "DOUBLE", 9, 2, "", "Long-Term Average Energy Protection Needed (kcal)")
     arcpy.AddField_management(os.path.join(self.scratch, 'AllDataBin'), 'nrgprot_80th_kcal', "DOUBLE", 9, 2, "", "80th Percentile Energy Protection Needed (kcal)")
     arcpy.CalculateField_management(in_table=os.path.join(self.scratch, 'AllDataBin'), field='nrgprot_lta_kcal', expression="!demand_lta_kcal! - !protected_kcal! if !demand_lta_kcal! - !protected_kcal! > 0 else 0", expression_type="PYTHON_9.3", code_block="")
@@ -573,7 +561,7 @@ class Waterfowlmodel:
     arcpy.FeatureClassToFeatureClass_conversion(os.path.join(self.scratch, 'AllDataBin'),self.scratch,self.aoiname+'_Output',self.binUnique[0] + " <> ''")
     if arcpy.Exists(os.path.join(outputgdb, self.aoiname+'_Output')):
       arcpy.Delete_management(os.path.join(outputgdb, self.aoiname+'_Output'))
-    #arcpy.Copy_management(os.path.join(self.scratch, self.aoiname+'_Output'), os.path.join(outputgdb, self.aoiname+'_Output'))
+    arcpy.Copy_management(os.path.join(self.scratch, self.aoiname+'_Output'), os.path.join(outputgdb, self.aoiname+'_Output'))
     logging.info('\tCreating output')
     return os.path.join(self.scratch, self.aoiname+'_Output')
 
@@ -644,7 +632,11 @@ class Waterfowlmodel:
     for sp, spname in spDict.items():
       for fldname, fldlst in energDict.items():
         #print('{} will become {}'.format(sp+'_'+fldname, sp + '_' + fldlst[0]))
-        arcpy.AlterField_management(webReady, sp+'_'+fldname, sp + '_' + fldlst[0], spname + ' ' + fldlst[1])
+        try:
+          arcpy.AlterField_management(webReady, sp+'_'+fldname, sp + '_' + fldlst[0], spname + ' ' + fldlst[1])
+        except:
+          arcpy.AddField_management(webReady, sp + '_' + fldlst[0], "DOUBLE", 9, 2, "", spname + ' ' + fldlst[1])
+          pass
 
     for fldname, fldlst in habitatDict.items():
       #print('{} will become {}'.format(fldname, fldlst[0]))
@@ -951,6 +943,8 @@ class Waterfowlmodel:
     :return output: Location of output
     :rtype output: str    
     """
+    print(pad)
+    print(nced)
     pad = gpd.read_file(os.path.dirname(pad), layer=os.path.basename(pad), driver='FileGDB')
     nced = gpd.read_file(os.path.dirname(nced), layer=os.path.basename(nced), driver='FileGDB')
     #diff = pad.difference(nced).append(nced)
