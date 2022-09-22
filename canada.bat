@@ -1,0 +1,3 @@
+@ECHO OFF
+::[Energy supply, Energy demand, Species proportion, protected lands, habitat proportion, urban, full model, data check, merge all, zip]
+python runModel.py -w "C:\Proc\Mike\JVDST" -g ABDU_Canada_Data.gdb -l Wetlands caWetlands.json CLASS_ENG -p ProtectedLands -n NCED_Polygons -k CAkcal.csv -d Demand9Species_Merged -a Canada_Boundary aoi -b HUC8 -u DATASETNAM WSCSSDANAM -r urbanCA -f ModelOutputFieldDictionary.csv -c 0 -z 0 1 0 0 0 0 0 1 1 0

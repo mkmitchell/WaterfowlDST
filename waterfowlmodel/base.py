@@ -57,23 +57,40 @@ def calculateStandardizedABDU(WebReady, binUnique):
   '''Helper function for calculating standardized values for ABDU'''
   print("Starting Standardization with ", WebReady)
   # create new fields
-  arcpy.AddField_management(WebReady, 'abdu_norm_restoregoal_80th', "DOUBLE", "", "", "", "American Black Duck Normalized Restoration Goal")
-  arcpy.AddField_management(WebReady, "abdu_norm_protectgoal_80th", "DOUBLE", "", "", "", "American Black Duck Normalized Protection Goal")
-  fds = [f.name for f in arcpy.ListFields(WebReady)]
+
+  fdList = [f.name for f in arcpy.ListFields(WebReady)]
+  demand_norm = 'abdu_demand_norm'
+  restore_norm = 'restore_goal_norm'
+  protect_norm = 'protect_goal_norm'
+  abdu_restore = 'abdu_norm_restoregoal_80th'
+  abdu_protect = 'abdu_norm_protectgoal_80th'
+  fds = [demand, demand_norm, restore_norm, protect_norm]
+  
+  newfds = [f for f in fds if f not in fdList]
+
+  for fd in newfds:
+    arcpy.management.AddField(fc, fd, "DOUBLE")
+
   # create a list of unique values that include 0 to find the min and max values
   def fdValues(fc, field):
     with arcpy.da.SearchCursor(fc, [field]) as cursor:
       return [row[0] for row in cursor]
-  abdu_Demand = fdValues(WebReady, 'abdu_demand_80th_kcal')
-  abdu_Demand = [0 if v is None else v for v in abdu_Demand]
-  minVal = min(abdu_Demand)
-  maxVal = max(abdu_Demand)
-  print("min ABDU Demand Value = ", minVal)
-  print("max ABDU Demand Value = ", maxVal)
+  
+  def getMaxMin(fc, field):
+    fds = fdValues(fc, field)
+    fds = [0 if v is None else v for v in fds]
+    maxVal = max(fds)
+    minVal = min(fds)
+    return minVal, maxVal
+
+  minVal_demand, maxVal_demand = getMaxMin(WebReady, 'abdu_demand_80th_kcal')
+  minVal_restore, maxVal_restore = getMaxMin(WebReady, 'restoregoal_80th_ha')
+  minVal_protect, maxVal_protect = getMaxMin(WebReady, 'protectgoal_80th_ha')
+
 
   # Change Null Values to 0 for specific values; calculate standardized values
-  ####      0                  1                             2                     3                               4                             5
-  fdList = [binUnique[0], 'abdu_demand_80th_kcal', 'restoregoal_80th_ha', 'protectgoal_80th_ha', 'abdu_norm_restoregoal_80th', 'abdu_norm_protectgoal_80th']
+  ####      0                  1                             2                     3                               4                             5                           6             7
+  fdList = [binUnique[0], 'abdu_demand_80th_kcal', 'restoregoal_80th_ha', 'protectgoal_80th_ha', 'abdu_norm_restoregoal_80th', 'abdu_norm_protectgoal_80th', 'restoregoal_norm', 'protectgoal_norm']
   
   with arcpy.da.UpdateCursor(WebReady, fdList) as cursor:
     for row in cursor:
@@ -83,9 +100,11 @@ def calculateStandardizedABDU(WebReady, binUnique):
         row[2] = 0
       if row[3] is None:
         row[3] = 0
-      zval = (row[1]-minVal)/(maxVal-minVal)
-      row[4] = zval * row[2]
-      row[5] = zval * row[3]
+      zval_demand = (row[1]-minVal_demand)/(maxVal_demand-minVal_demand)
+      zval_restore = (row[6]-minVal_restore)/(maxVal_restore-minVal_restore)
+      zval_protect = (row[7]-minVal_protect)/(maxVal_protect-minVal_protect)
+      row[4] = zval_demand * zval_restore
+      row[5] = zval_demand * zval_protect
       cursor.updateRow(row)
 
   return WebReady
