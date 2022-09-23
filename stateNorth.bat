@@ -1,3 +1,0 @@
-@ECHO OFF
-::                                                                                                       [Energy supply [0], Energy demand [1], Species proportion [2], public lands [3], habitat proportion [4], urban [5], full model [6], data check [7], merge for web [8], zip[9]] -z 0 0 0 0 0 0 0 1 1 0
-python runModel.py -w "C:\Proc\Mike\JVDST" -g ModelReady.gdb -l CONUS_wetlands aoiWetland.json ATTRIBUTE -p PADUS2_0Fee -n NCED_Polygons -k NAkcal.csv -d Demand9Species_Merged -e MarshVector marsh.csv Impoundments Impoundments.csv -a StateNorth STUSPS10 -b HUC12 -u HUC_12 HU_12_NAME -r nlcd2019Albers -f ModelOutputFieldDictionary.csv -c 0 -z 0 0 0 0 0 0 1 1 1 1

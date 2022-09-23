@@ -1,0 +1,678 @@
+<!DOCTYPE html>
+<html class="writer-html5" lang="en" >
+<head>
+  <meta charset="utf-8" /><meta name="generator" content="Docutils 0.17.1: http://docutils.sourceforge.net/" />
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Module Waterfowl &mdash; Waterfowl Habitat Decision Support Tool 1.0 documentation</title>
+      <link rel="stylesheet" href="_static/pygments.css" type="text/css" />
+      <link rel="stylesheet" href="_static/css/theme.css" type="text/css" />
+  <!--[if lt IE 9]>
+    <script src="_static/js/html5shiv.min.js"></script>
+  <![endif]-->
+  
+        <script data-url_root="./" id="documentation_options" src="_static/documentation_options.js"></script>
+        <script src="_static/jquery.js"></script>
+        <script src="_static/underscore.js"></script>
+        <script src="_static/_sphinx_javascript_frameworks_compat.js"></script>
+        <script src="_static/doctools.js"></script>
+        <script crossorigin="anonymous" integrity="sha256-Ae2Vz/4ePdIu6ZyI/5ZGsYnb+m0JlOmKPjt6XZ9JJkA=" src="https://cdnjs.cloudflare.com/ajax/libs/require.js/2.3.4/require.min.js"></script>
+    <script src="_static/js/theme.js"></script>
+    <link rel="index" title="Index" href="genindex.html" />
+    <link rel="search" title="Search" href="search.html" />
+    <link rel="next" title="Run Model" href="runModel.html" />
+    <link rel="prev" title="Model Output Fields" href="datadictionary.html" /> 
+</head>
+
+<body class="wy-body-for-nav"> 
+  <div class="wy-grid-for-nav">
+    <nav data-toggle="wy-nav-shift" class="wy-nav-side">
+      <div class="wy-side-scroll">
+        <div class="wy-side-nav-search" >
+            <a href="index.html" class="icon icon-home"> Waterfowl Habitat Decision Support Tool
+          </a>
+<div role="search">
+  <form id="rtd-search-form" class="wy-form" action="search.html" method="get">
+    <input type="text" name="q" placeholder="Search docs" />
+    <input type="hidden" name="check_keywords" value="yes" />
+    <input type="hidden" name="area" value="default" />
+  </form>
+</div>
+        </div><div class="wy-menu wy-menu-vertical" data-spy="affix" role="navigation" aria-label="Navigation menu">
+              <p class="caption" role="heading"><span class="caption-text">Contents:</span></p>
+<ul class="current">
+<li class="toctree-l1"><a class="reference internal" href="datadictionary.html">Model Output Fields</a></li>
+<li class="toctree-l1 current"><a class="current reference internal" href="#">Module Waterfowl</a></li>
+<li class="toctree-l1"><a class="reference internal" href="runModel.html">Run Model</a></li>
+<li class="toctree-l1"><a class="reference internal" href="dataset.html">Module Dataset</a></li>
+<li class="toctree-l1"><a class="reference internal" href="publicland.html">Module Publicland</a></li>
+<li class="toctree-l1"><a class="reference internal" href="mergeNWIDict.html">Create the National Wetland Inventory JSON File</a></li>
+<li class="toctree-l1"><a class="reference internal" href="zipUp.html">zipUp</a></li>
+</ul>
+
+        </div>
+      </div>
+    </nav>
+
+    <section data-toggle="wy-nav-shift" class="wy-nav-content-wrap"><nav class="wy-nav-top" aria-label="Mobile navigation menu" >
+          <i data-toggle="wy-nav-top" class="fa fa-bars"></i>
+          <a href="index.html">Waterfowl Habitat Decision Support Tool</a>
+      </nav>
+
+      <div class="wy-nav-content">
+        <div class="rst-content">
+          <div role="navigation" aria-label="Page navigation">
+  <ul class="wy-breadcrumbs">
+      <li><a href="index.html" class="icon icon-home"></a> &raquo;</li>
+      <li>Module Waterfowl</li>
+      <li class="wy-breadcrumbs-aside">
+            <a href="_sources/base.rst.txt" rel="nofollow"> View page source</a>
+      </li>
+  </ul>
+  <hr/>
+</div>
+          <div role="main" class="document" itemscope="itemscope" itemtype="http://schema.org/Article">
+           <div itemprop="articleBody">
+             
+  
+<style>
+/* CSS overrides for sphinx_rtd_theme */
+
+/* 24px margin */
+.nbinput.nblast.container,
+.nboutput.nblast.container {
+    margin-bottom: 19px;  /* padding has already 5px */
+}
+
+/* ... except between code cells! */
+.nblast.container + .nbinput.container {
+    margin-top: -19px;
+}
+
+.admonition > p:before {
+    margin-right: 4px;  /* make room for the exclamation icon */
+}
+
+/* Fix math alignment, see https://github.com/rtfd/sphinx_rtd_theme/pull/686 */
+.math {
+    text-align: unset;
+}
+</style>
+<span class="target" id="module-waterfowlmodel.base"></span><section id="module-waterfowl">
+<h1>Module Waterfowl<a class="headerlink" href="#module-waterfowl" title="Permalink to this heading"></a></h1>
+<p>Defines Waterfowlmodel class which is used for storing parameters and doing calculations for the waterfowl decision support tool.</p>
+<dl class="py class">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel">
+<em class="property"><span class="pre">class</span><span class="w"> </span></em><span class="sig-prename descclassname"><span class="pre">waterfowlmodel.base.</span></span><span class="sig-name descname"><span class="pre">Waterfowlmodel</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">aoi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aoiname</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wetland</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">kcalTable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">crosswalk</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">demand</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">urban</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binIt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binUnique</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extra</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fieldtable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scratch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">classAttr</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel" title="Permalink to this definition"></a></dt>
+<dd><p>Stores waterfowl model parameters and methods.</p>
+<p>Creates a waterfowl model object.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>aoi</strong> (<em>str</em>) – feature dataset of area of interest</p></li>
+<li><p><strong>aoiname</strong> (<em>str</em>) – Name of area of interest used for unique naming</p></li>
+<li><p><strong>wetland</strong> (<em>str</em>) – Wetland feature dataset (e.g. National Wetland Inventory)</p></li>
+<li><p><strong>kcalTable</strong> (<em>str</em>) – CSV file containing two columns [habitat type, kilocalorie value by hectares]</p></li>
+<li><p><strong>crosswalk</strong> (<em>str</em>) – CSV file relating wetland habitat types to kcal csv table</p></li>
+<li><p><strong>demand</strong> (<em>str</em>) – Feature dataset of NAWCA stepdown Duck Use Days objectives</p></li>
+<li><p><strong>urban</strong> (<em>str</em>) – Raster dataset of impervious and built features</p></li>
+<li><p><strong>binIt</strong> (<em>str</em>) – Feature dataset of aggregation features (e.g. HUC12 watersheds)</p></li>
+<li><p><strong>binUnique</strong> (<em>str</em>) – Unique fields for aggregation (e.g. HUC12 ID number)</p></li>
+<li><p><strong>extra</strong> (<em>str</em>) – List of extra feature datasets and their corresponding crossover table</p></li>
+</ul>
+</dd>
+</dl>
+<p>:param fieldtable Crosswalk table to standardize field names and aliases
+:type fieldtable str
+:param scratch: Scratch geodatabase location
+:type scratch: str</p>
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.aggByField">
+<span class="sig-name descname"><span class="pre">aggByField</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mergeAll</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scratch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">demand</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binme</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.aggByField" title="Permalink to this definition"></a></dt>
+<dd><p>Very similar to aggproportion but instead of using area to aggregate data this function uses avalNrgy.  This is largely used for proportioning energy demand based on
+energy supply.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mergeAll</strong> (<em>str</em>) – Merged energy returned from self.prepnpptables.</p></li>
+<li><p><strong>scratch</strong> (<em>str</em>) – Scratch geodatabase location</p></li>
+<li><p><strong>cat</strong> (<em>str</em>) – Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.aggproportion">
+<span class="sig-name descname"><span class="pre">aggproportion</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">aggTo</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aggData</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">IDField</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aggFields</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">dissolveFields</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scratch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">aggStat</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'SUM'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.aggproportion" title="Permalink to this definition"></a></dt>
+<dd><p>Calculates proportional sum aggregate based on area within specified columns of a given dataset to features from another dataset.
+Example: One aggData feature overlays two aggTo features (A abd B).  The one aggData feature has 100 kcal.  60% of the aggData feature is in
+aggTo feature A and 40% in aggTo feature B.  This method will assign 6 0kcal to feature A and 40 kcal to feature B.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>aggTo</strong> (<em>str</em>) – Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.</p></li>
+<li><p><strong>aggData</strong> (<em>str</em>) – Spatial data to be aggregated</p></li>
+<li><p><strong>IDField</strong> (<em>str</em>) – ID field used for data aggregation</p></li>
+<li><p><strong>aggFields</strong> (<em>str</em>) – Field for aggregation</p></li>
+<li><p><strong>dissolveFields</strong> (<em>str</em>) – Field for dissolving bins after union</p></li>
+<li><p><strong>scratch</strong> (<em>str</em>) – Scratch geodatabase location</p></li>
+<li><p><strong>cat</strong> (<em>str</em>) – Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.</p></li>
+<li><p><strong>aggStat</strong> (<em>str</em>) – Aggregation statistic.  Default is SUM</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Spatial Sum aggregate of aggData within supplied bins</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.calcAvailable">
+<span class="sig-name descname"><span class="pre">calcAvailable</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">urbanraster</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protectedPoly</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.calcAvailable" title="Permalink to this definition"></a></dt>
+<dd><p>Merges protected and urban.  Need to replace or merge with the pandasMerge function</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>protected</strong> (<em>list</em>) – List of dataset locations to be merged</p></li>
+<li><p><strong>urban</strong> (<em>list</em>) – List of dataset locations to be merged</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return output</dt>
+<dd class="field-even"><p>Location of output</p>
+</dd>
+<dt class="field-odd">Rtype output</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.calcProtected">
+<span class="sig-name descname"><span class="pre">calcProtected</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mergedenergy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protectedMerge</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">protectedEnergy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.calcProtected" title="Permalink to this definition"></a></dt>
+<dd><p>Creates attribute for hectares of habitat and hectares of protected habitat</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.clipStuff">
+<span class="sig-name descname"><span class="pre">clipStuff</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inFeature</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.clipStuff" title="Permalink to this definition"></a></dt>
+<dd><p>Clips input feature to the area of interest.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inFeature</strong> (<em>str</em>) – Feature dataset to clip to AOI</p></li>
+<li><p><strong>cat</strong> (<em>str</em>) – Category name used for unique storage</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return outfc</dt>
+<dd class="field-even"><p>Location of clipped feature dataset</p>
+</dd>
+<dt class="field-odd">Rtype outfc</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.crossClass">
+<span class="sig-name descname"><span class="pre">crossClass</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inDataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xTable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">curclass</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ATTRIBUTE'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.crossClass" title="Permalink to this definition"></a></dt>
+<dd><p>Currently used for the extra datasets only.  Most likely will deprecate and replace with a faster version.
+Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inDataset</strong> (<em>str</em>) – Feature to be updated with a new ‘CLASS’ field</p></li>
+<li><p><strong>xTable</strong> (<em>str</em>) – Location of csv or json file with two columns, original class and the class it’s changing to</p></li>
+<li><p><strong>curclass</strong> (<em>str.</em>) – Field that lists current class within inDataset</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.dstOutput">
+<span class="sig-name descname"><span class="pre">dstOutput</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mergebin</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outputgdb</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.dstOutput" title="Permalink to this definition"></a></dt>
+<dd><p>Runs energy difference between NAWCA stepdown objectives and available habitat.</p>
+<p>Calculations:
+Energy supply</p>
+<blockquote>
+<div><p>Total habitat energy within huc - THabNrg
+Total habitat hectares within huc - THabHA</p>
+</div></blockquote>
+<dl class="simple">
+<dt>Energy demand</dt><dd><p>LTA and X80 DUD by huc - TLTADUD anc X80DUD
+LTA and X80 Demand by huc - TLTADemand and X80Demand
+LTA and X80 Population objective by huc - LTAPopObj and X80PopObj</p>
+</dd>
+<dt>Protected lands</dt><dd><p>Total protected hectares by huc - ProtHA</p>
+</dd>
+<dt>Protected habitat hectares and energy</dt><dd><p>Total protected hectares - ProtHabHA
+Total protected energy - ProtHabNrg</p>
+</dd>
+<dt>Weighted mean and calculations based off of it</dt><dd><p>Weighted mean kcal/ha with weight being Total habitat energy
+Energy Protection needed - NrgProtRq
+Restoration HA based off of weighted mean - RstorHA
+Protection HA based off weighted mean - RstorProtHA</p>
+</dd>
+</dl>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mergebin</strong> (<em>list</em>) – List that holds all datasets to be merged for output</p></li>
+<li><p><strong>outputgdb</strong> (<em>str</em>) – Output gdb that will be zipped and shipped</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Shapefile containing model results at the county level</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.energyBySpecies">
+<span class="sig-name descname"><span class="pre">energyBySpecies</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">demand</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scratch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binIt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mergedAll</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.energyBySpecies" title="Permalink to this definition"></a></dt>
+<dd><p>Runs species specific energy demand.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>demand</strong> (<em>str</em>) – Energy demand layer</p></li>
+<li><p><strong>scratch</strong> (<em>str</em>) – Scratch geodatabase location</p></li>
+<li><p><strong>binIt</strong> (<em>str</em>) – Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.</p></li>
+<li><p><strong>mergeAll</strong> (<em>str</em>) – Merged energy returned from self.prepnpptables.</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.getHabList">
+<span class="sig-name descname"><span class="pre">getHabList</span></span><span class="sig-paren">(</span><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.getHabList" title="Permalink to this definition"></a></dt>
+<dd><p>Reads the objects input kcal table and returns a list of habitat types.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Return list</dt>
+<dd class="field-odd"><p>List of habitat types</p>
+</dd>
+<dt class="field-even">Rtype list</dt>
+<dd class="field-even"><p>list</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.gpdToGDB">
+<span class="sig-name descname"><span class="pre">gpdToGDB</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inDataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fields</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">areafield</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.gpdToGDB" title="Permalink to this definition"></a></dt>
+<dd><p>Writes geopandas dataframe to a geodatabase and adds calculated hectares field.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inDataset</strong> (<em>str</em>) – Feature class to convert</p></li>
+<li><p><strong>fields</strong> (<em>str</em>) – Fields required in end product</p></li>
+<li><p><strong>areafield</strong> – Field for area calculation</p></li>
+<li><p><strong>cat</strong> (<em>str</em>) – Category string for identification</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Modifed inDataset</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.joinEnergy">
+<span class="sig-name descname"><span class="pre">joinEnergy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">wetland</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">extra</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mergedenergy</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.joinEnergy" title="Permalink to this definition"></a></dt>
+<dd><p>Joins energy layers (Wetland with extra) by merging extra layer datasets and erasing from NWI then merging.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>wetland</strong> (<em>str</em>) – location of wetland dataset</p></li>
+<li><p><strong>extra</strong> (<em>str</em>) – Location of the extra habitat supply datasets</p></li>
+<li><p><strong>mergedenergy</strong> (<em>str</em>) – Merged energy feature location</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Merged energy feature location</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.mergeForWeb">
+<span class="sig-name descname"><span class="pre">mergeForWeb</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">mainModel</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">spEnergy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">habPct</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">outputgdb</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.mergeForWeb" title="Permalink to this definition"></a></dt>
+<dd><p>Merges the main model output with species specific energy and habitat percentages for a clean model to web pipeline.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>mainModel</strong> (<em>str</em>) – Protection and restoration goals dataset</p></li>
+<li><p><strong>spEnergy</strong> (<em>str</em>) – Species specific goals dataset</p></li>
+<li><p><strong>habPct</strong> (<em>str</em>) – Habitat percentage dataset</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Shapefile containing ready for web output to be zipped</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.pandasClean">
+<span class="sig-name descname"><span class="pre">pandasClean</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">workspace</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">toClean</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.pandasClean" title="Permalink to this definition"></a></dt>
+<dd><p>ESRI Repair is slow.  Pandas buffering by 0 seems to fix irregularities much faster.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>workspace</strong> (<em>str</em>) – Workspace directory for storing temporary data</p></li>
+<li><p><strong>toClean</strong> (<em>str</em>) – Feature Class that needs repair.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return output</dt>
+<dd class="field-even"><p>Location of output</p>
+</dd>
+<dt class="field-odd">Rtype output</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.pandasMerge">
+<span class="sig-name descname"><span class="pre">pandasMerge</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">pad</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">nced</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.pandasMerge" title="Permalink to this definition"></a></dt>
+<dd><p>Prepares protected lands by merging protected features in the passed list.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>pad</strong> (<em>list</em>) – List of dataset locations to be merged</p></li>
+<li><p><strong>nced</strong> (<em>list</em>) – List of dataset locations to be merged</p></li>
+<li><p><strong>output</strong> (<em>str</em>) – Location of output</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return output</dt>
+<dd class="field-even"><p>Location of output</p>
+</dd>
+<dt class="field-odd">Rtype output</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.pandasMergeMulti">
+<span class="sig-name descname"><span class="pre">pandasMergeMulti</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">toMerge</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">output</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.pandasMergeMulti" title="Permalink to this definition"></a></dt>
+<dd><p>Prepares protected lands by merging protected features in the passed list.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>toMerge</strong> (<em>list</em>) – List of dataset locations to be merged</p></li>
+<li><p><strong>output</strong> (<em>str</em>) – Location of output</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return output</dt>
+<dd class="field-even"><p>Location of output</p>
+</dd>
+<dt class="field-odd">Rtype output</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.pctHabitatType">
+<span class="sig-name descname"><span class="pre">pctHabitatType</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">binUnique</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wtmarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.pctHabitatType" title="Permalink to this definition"></a></dt>
+<dd><p>Calculates proportion of habitat type by bin feature.</p>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.prepEnergyFast">
+<span class="sig-name descname"><span class="pre">prepEnergyFast</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inDataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xTable</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.prepEnergyFast" title="Permalink to this definition"></a></dt>
+<dd><p>Calculates habitat area and energy of the input dataset.  Utilizes geopandas which has been much faster than arcpy.  Not without issues (Larger than 2GB shapefile).
+Incorporated a workaround by creating a new empty feature dataset in a file geodatabase and using an insertcursor to write each row from the geopandas dataframe.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inDataset</strong> (<em>str</em>) – Feature to be updated with kcal values that relate to the class</p></li>
+<li><p><strong>xTable</strong> (<em>str</em>) – Location of csv or json file with two columns, from class and to class</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Modifed inDataset</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.prepProtected">
+<span class="sig-name descname"><span class="pre">prepProtected</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">protlist</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.prepProtected" title="Permalink to this definition"></a></dt>
+<dd><p>DEPRECATED
+Prepares protected lands by merging protected features in the passed list.  This needs to be updated to use GDB instead of shapefile.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>protlist</strong> (<em>list</em>) – Protected feature classes</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.prepnpTables">
+<span class="sig-name descname"><span class="pre">prepnpTables</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">demand</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binme</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">energy</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scratch</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.prepnpTables" title="Permalink to this definition"></a></dt>
+<dd><p>Reads in merged energy dataset, repairs it, then exports a csv file for use in habitat proportion calculations.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>demand</strong> (<em>str</em>) – Energy demand layer location</p></li>
+<li><p><strong>binme</strong> (<em>str</em>) – Bin to aggregate data to</p></li>
+<li><p><strong>energy</strong> (<em>str</em>) – Merged energy supply layer</p></li>
+<li><p><strong>scratch</strong> (<em>str</em>) – Scratch geodatabase location</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Merged energy supply and demand layer location</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.processExtra">
+<span class="sig-name descname"><span class="pre">processExtra</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">extra</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.processExtra" title="Permalink to this definition"></a></dt>
+<dd><p>Project and clip all extra energy datasets and returns a Dictionary.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><p><strong>extra</strong> (<em>list</em>) – Feature to project to Albers</p>
+</dd>
+<dt class="field-even">Return readyExtra</dt>
+<dd class="field-even"><p>Dictionary of data location as keys and cross class table as value</p>
+</dd>
+<dt class="field-odd">Rtype readyExtra</dt>
+<dd class="field-odd"><p>dict</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.projAlbers">
+<span class="sig-name descname"><span class="pre">projAlbers</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inFeature</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">cat</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.projAlbers" title="Permalink to this definition"></a></dt>
+<dd><p>Project spatial feature datasets to Albers Equal Area (WKSID 102003)</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inFeature</strong> (<em>str</em>) – feature dataset to project to Albers</p></li>
+<li><p><strong>cat</strong> (<em>str</em>) – Category name used for unique storage and identification</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return outfc</dt>
+<dd class="field-even"><p>Location of projected feature</p>
+</dd>
+<dt class="field-odd">Rtype outfc</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.selectBins">
+<span class="sig-name descname"><span class="pre">selectBins</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">aoi</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">bins</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.selectBins" title="Permalink to this definition"></a></dt>
+<dd><p>DEPRECATED
+Selects bins that intersect the AOI.  Incorporated to remove edge effect error.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>aoi</strong> (<em>str</em>) – Features used as the area of interest to select intersecting bin features.  Feature AOI name</p></li>
+<li><p><strong>bins</strong> (<em>str</em>) – Feature bin name</p></li>
+</ul>
+</dd>
+<dt class="field-even">Return outfc</dt>
+<dd class="field-even"><p>Location of selected bins feature dataset</p>
+</dd>
+<dt class="field-odd">Rtype outfc</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.summarizebySpecies">
+<span class="sig-name descname"><span class="pre">summarizebySpecies</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">demand</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">scratch</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binIt</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binUnique</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">mergedAll</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">fieldtable</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.summarizebySpecies" title="Permalink to this definition"></a></dt>
+<dd><p>Aggregates species specific energy demand on a smaller scale to multiple larger scale features.  Example: County to HUC12.
+Requires original demand layer.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>demand</strong> (<em>str</em>) – Energy demand layer</p></li>
+<li><p><strong>scratch</strong> (<em>str</em>) – Scratch geodatabase location</p></li>
+<li><p><strong>binIt</strong> (<em>str</em>) – Spatial dataset used as the aggregation feature.  Data will be binned to the features within this dataset.</p></li>
+<li><p><strong>mergeAll</strong> (<em>str</em>) – Merged energy returned from self.prepnpptables.</p></li>
+</ul>
+</dd>
+<dt class="field-even">Fieldtable</dt>
+<dd class="field-even"><p>ModelOutputFieldDictionary.csv, contains crosswalk from original field names to correct field names and aliases.</p>
+</dd>
+<dt class="field-odd">Returns</dt>
+<dd class="field-odd"><p>Feature class with energy demand proportioned to smaller aggregation unit based on available energy supply</p>
+</dd>
+<dt class="field-even">Return type</dt>
+<dd class="field-even"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.supaCrossClass">
+<span class="sig-name descname"><span class="pre">supaCrossClass</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inDataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xTable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">curclass</span></span><span class="o"><span class="pre">=</span></span><span class="default_value"><span class="pre">'ATTRIBUTE'</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.supaCrossClass" title="Permalink to this definition"></a></dt>
+<dd><p>Faster version of self.crossClass used for NWI.
+Adds a CLASS field to the input dataset and sets it equal to the class field in the crossclass table.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>inDataset</strong> (<em>str</em>) – Feature to be updated with a new ‘CLASS’ field</p></li>
+<li><p><strong>xTable</strong> (<em>str</em>) – Location of csv or json file with two columns, original class and the class it’s changing to</p></li>
+<li><p><strong>curclass</strong> (<em>str.</em>) – Field that lists current class within inDataset</p></li>
+</ul>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.unionEnergy">
+<span class="sig-name descname"><span class="pre">unionEnergy</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">supply</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">demand</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.unionEnergy" title="Permalink to this definition"></a></dt>
+<dd><p>Merges supply and demand energy features into one feature to calculate energy surplus or deficit.</p>
+<dl class="field-list simple">
+<dt class="field-odd">Parameters</dt>
+<dd class="field-odd"><ul class="simple">
+<li><p><strong>supply</strong> (<em>str</em>) – Energy supply dataset</p></li>
+<li><p><strong>demand</strong> (<em>str</em>) – Energy demand dataset</p></li>
+</ul>
+</dd>
+<dt class="field-even">Returns</dt>
+<dd class="field-even"><p>Shapefile containing model results at the county level</p>
+</dd>
+<dt class="field-odd">Return type</dt>
+<dd class="field-odd"><p>str</p>
+</dd>
+</dl>
+</dd></dl>
+
+<dl class="py method">
+<dt class="sig sig-object py" id="waterfowlmodel.base.Waterfowlmodel.weightedMean">
+<span class="sig-name descname"><span class="pre">weightedMean</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">inDataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">wtmarray</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.Waterfowlmodel.weightedMean" title="Permalink to this definition"></a></dt>
+<dd><p>Calculates weighted average of kcal/ha weight available energy as the weight.</p>
+</dd></dl>
+
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="waterfowlmodel.base.calculateStandardizedABDU">
+<span class="sig-prename descclassname"><span class="pre">waterfowlmodel.base.</span></span><span class="sig-name descname"><span class="pre">calculateStandardizedABDU</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">WebReady</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">binUnique</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.calculateStandardizedABDU" title="Permalink to this definition"></a></dt>
+<dd><p>Helper function for calculating standardized values for ABDU</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="waterfowlmodel.base.calculate_field">
+<span class="sig-prename descclassname"><span class="pre">waterfowlmodel.base.</span></span><span class="sig-name descname"><span class="pre">calculate_field</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">df</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">inDataset</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">xTable</span></span></em>, <em class="sig-param"><span class="n"><span class="pre">curclass</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.calculate_field" title="Permalink to this definition"></a></dt>
+<dd><p>Helper function for calculating dataset landcover class from csv or json</p>
+</dd></dl>
+
+<dl class="py function">
+<dt class="sig sig-object py" id="waterfowlmodel.base.report_time">
+<span class="sig-prename descclassname"><span class="pre">waterfowlmodel.base.</span></span><span class="sig-name descname"><span class="pre">report_time</span></span><span class="sig-paren">(</span><em class="sig-param"><span class="n"><span class="pre">func</span></span></em><span class="sig-paren">)</span><a class="headerlink" href="#waterfowlmodel.base.report_time" title="Permalink to this definition"></a></dt>
+<dd><p>Decorator reporting the execution time</p>
+</dd></dl>
+
+</section>
+
+
+           </div>
+          </div>
+          <footer><div class="rst-footer-buttons" role="navigation" aria-label="Footer">
+        <a href="datadictionary.html" class="btn btn-neutral float-left" title="Model Output Fields" accesskey="p" rel="prev"><span class="fa fa-arrow-circle-left" aria-hidden="true"></span> Previous</a>
+        <a href="runModel.html" class="btn btn-neutral float-right" title="Run Model" accesskey="n" rel="next">Next <span class="fa fa-arrow-circle-right" aria-hidden="true"></span></a>
+    </div>
+
+  <hr/>
+
+  <div role="contentinfo">
+    <p>&#169; Copyright 2021, Ducks Unlimited.</p>
+  </div>
+
+  Built with <a href="https://www.sphinx-doc.org/">Sphinx</a> using a
+    <a href="https://github.com/readthedocs/sphinx_rtd_theme">theme</a>
+    provided by <a href="https://readthedocs.org">Read the Docs</a>.
+   
+
+</footer>
+        </div>
+      </div>
+    </section>
+  </div>
+  <script>
+      jQuery(function () {
+          SphinxRtdTheme.Navigation.enable(true);
+      });
+  </script> 
+
+</body>
+</html>
