@@ -4,9 +4,7 @@ Waterfowl Decision Support Tool Documentation
 This waterfowl model has been created to support east coast joint venture waterfowl planning.
 
 We've experienced many difficulties using only arcpy for the workflow.  Sometimes we got around this by converting data
-to raster, sometimes we incorporated numpy or geopandas, and othertimes multiprocessing helped.  When adding in an element
-that wasn't previously there different problems.  Examples include simple arcpy tools failing to operate when incorprating
-multiprocessing.  Dissolve SUM was adding an extra '0' to a small subset of fields at one point and swithing to MEAN fixed it.
+to raster, sometimes we incorporated numpy or geopandas, and othertimes multiprocessing helped.
 
 After updating ArcPro geopandas failed to work or install because of conflicts.  This code was designed to work with 2.7.x and geopandas installed.
 
